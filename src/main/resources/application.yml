@@ -11,6 +11,14 @@ spring:
       ddl-auto: validate
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: devpath-platform
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   flyway:
     enabled: false   # 마이그레이션은 devpath-shared(중앙)에서 실행, 서비스는 validate만
   data:
