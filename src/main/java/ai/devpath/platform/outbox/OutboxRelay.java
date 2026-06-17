@@ -3,7 +3,6 @@ package ai.devpath.platform.outbox;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -16,9 +15,6 @@ public class OutboxRelay {
         this.outbox = outbox;
         this.kafka = kafka;
     }
-
-    @Scheduled(fixedDelay = 2000)
-    public void relay() { relayOnce(); }
 
     // P0-3: Kafka send는 비동기다. future 성공을 확인한 뒤에만 published_at을 설정한다.
     // 발행 실패 시 해당 행은 미발행 유지(다음 폴링 재시도) + 순서 보장 위해 중단. @Transactional 미사용

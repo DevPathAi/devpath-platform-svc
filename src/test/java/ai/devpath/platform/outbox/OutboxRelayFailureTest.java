@@ -25,6 +25,7 @@ class OutboxRelayFailureTest {
     @Autowired OutboxRelay relay;
 
     @Test
+    @SuppressWarnings("unchecked")
     void relayKeepsPublishedAtNullWhenSendFails() {
         // Kafka send 실패 시뮬레이션: get()에서 예외를 던지는 CompletableFuture 반환
         CompletableFuture<Object> failed = new CompletableFuture<>();
