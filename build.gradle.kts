@@ -52,6 +52,7 @@ dependencies {
 	testImplementation("org.flywaydb:flyway-core")
 	testImplementation("org.flywaydb:flyway-database-postgresql")
 	testCompileOnly("org.projectlombok:lombok")
+	testImplementation("org.awaitility:awaitility")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testAnnotationProcessor("org.projectlombok:lombok")
 }
