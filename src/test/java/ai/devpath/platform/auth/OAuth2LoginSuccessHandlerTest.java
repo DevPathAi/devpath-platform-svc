@@ -73,6 +73,7 @@ class OAuth2LoginSuccessHandlerTest {
 
 		assertEquals(302, res.getStatus());
 		assertNotNull(res.getRedirectedUrl());
+		assertTrue(res.getRedirectedUrl().endsWith("/auth/callback"), "redirect must end with /auth/callback");
 		String setCookie = res.getHeader("Set-Cookie");
 		assertNotNull(setCookie, "refresh 쿠키 설정");
 		assertTrue(setCookie.contains("refresh_token="));

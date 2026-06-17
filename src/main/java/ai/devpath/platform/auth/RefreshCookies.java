@@ -34,4 +34,11 @@ public class RefreshCookies {
 
 		return builder.build();
 	}
+
+	public ResponseCookie clear() {
+		ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(COOKIE_NAME, "")
+				.httpOnly(true).secure(props.isCookieSecure()).path("/").maxAge(0).sameSite(props.getCookieSameSite());
+		if (props.getCookieDomain() != null && !props.getCookieDomain().isBlank()) b.domain(props.getCookieDomain());
+		return b.build();
+	}
 }
