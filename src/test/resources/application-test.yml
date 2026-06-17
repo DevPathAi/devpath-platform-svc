@@ -2,6 +2,11 @@ devpath:
   auth:
     jwt-secret: test-secret-please-change-min-32-bytes-long-0123456789
 spring:
+  # 테스트 DB 스키마 프로비저닝: shared jar의 classpath:db/migration으로 Flyway 실행(ddl-auto: validate 선행).
+  # main 런타임은 flyway enabled=false(중앙 마이그레이션). 테스트 프로파일만 여기서 override.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   security:
     oauth2:
       client:
