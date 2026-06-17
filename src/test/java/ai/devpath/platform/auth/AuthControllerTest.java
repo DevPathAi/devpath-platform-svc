@@ -38,6 +38,10 @@ class AuthControllerTest {
 				.andExpect(jsonPath("$.user.id").value(String.valueOf(u.getId())))
 				.andExpect(jsonPath("$.user.email").value(u.getEmail()))
 				.andExpect(header().exists("Set-Cookie"));
+
+		// I-1: 첫 호출 성공(200) 후 — 동일 이전 토큰 재사용은 회전으로 무효 → 401
+		mvc.perform(post("/auth/refresh").cookie(new Cookie("refresh_token", refresh)))
+				.andExpect(status().isUnauthorized());
 	}
 
 	@Test
@@ -51,5 +55,9 @@ class AuthControllerTest {
 		mvc.perform(post("/auth/logout").cookie(new Cookie("refresh_token", refresh)))
 				.andExpect(status().isNoContent())
 				.andExpect(header().exists("Set-Cookie"));
+
+		// m-1: logout 후 동일 refresh 토큰으로 /auth/refresh 시도 → revoke됨 → 401
+		mvc.perform(post("/auth/refresh").cookie(new Cookie("refresh_token", refresh)))
+				.andExpect(status().isUnauthorized());
 	}
 }
