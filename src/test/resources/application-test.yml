@@ -1,0 +1,12 @@
+devpath:
+  auth:
+    jwt-secret: test-secret-please-change-min-32-bytes-long-0123456789
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: test-client
+            client-secret: test-secret
+            scope: read:user,user:email
