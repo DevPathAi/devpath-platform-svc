@@ -39,9 +39,12 @@ dependencies {
 	runtimeOnly("org.postgresql:postgresql")
 	compileOnly("org.projectlombok:lombok")
 	annotationProcessor("org.projectlombok:lombok")
+	implementation("org.springframework.kafka:spring-kafka")
+	implementation("org.springframework.boot:spring-boot-kafka")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-security-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+	testImplementation("org.springframework.kafka:spring-kafka-test")
 	// 테스트 전용: shared jar의 db/migration(classpath)으로 테스트 DB 스키마 프로비저닝(ddl-auto: validate 선행).
 	// 런타임/배포는 중앙 마이그레이션 잡이 담당하므로 main에는 flyway 미포함(flyway: enabled=false).
 	// Boot 4는 autoconfigure가 모듈 분리됨 → Flyway 자동구성(FlywayAutoConfiguration)은 spring-boot-flyway에 있다.
