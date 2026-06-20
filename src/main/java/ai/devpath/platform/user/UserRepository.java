@@ -10,4 +10,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
   @Query("update User u set u.onboardingStatus = 'IN_PROGRESS' "
        + "where u.id = :userId and u.onboardingStatus = 'PENDING'")
   int markAssessmentStartedIfPending(@Param("userId") Long userId);
+
+  @Modifying
+  @Query("update User u set u.onboardingStatus = 'DONE' "
+       + "where u.id = :userId and u.onboardingStatus in ('PENDING', 'IN_PROGRESS')")
+  int markOnboardingDoneIfPathGenerated(@Param("userId") Long userId);
 }
