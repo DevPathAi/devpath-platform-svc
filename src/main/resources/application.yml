@@ -11,8 +11,28 @@ spring:
       ddl-auto: validate
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: devpath-platform
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   flyway:
     enabled: false   # 마이그레이션은 devpath-shared(중앙)에서 실행, 서비스는 validate만
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID:dummy-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:dummy-secret}
+            scope: read:user,user:email
 
 server:
   port: 8080
@@ -22,3 +42,13 @@ management:
     web:
       exposure:
         include: health, info, metrics
+
+devpath:
+  auth:
+    jwt-secret: ${JWT_SECRET:test-secret-please-change-min-32-bytes-long-0123456789}
+    access-ttl: ${ACCESS_TTL:PT15M}
+    refresh-ttl: ${REFRESH_TTL:P14D}
+    web-url: ${APP_WEB_URL:http://localhost:5173}
+    cookie-domain: ${COOKIE_DOMAIN:}
+    cookie-secure: ${COOKIE_SECURE:false}
+    cookie-same-site: ${COOKIE_SAME_SITE:Lax}
