@@ -3,12 +3,15 @@ package ai.devpath.platform.notification;
 import ai.devpath.shared.event.UserRegisteredEvent;
 import tools.jackson.databind.json.JsonMapper; // Boot 4 = Jackson 3
 import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
 public class WelcomeNotificationConsumer {
 
+	private static final Logger log = LoggerFactory.getLogger(WelcomeNotificationConsumer.class);
 	private static final String TYPE = "WELCOME";
 	private final NotificationRepository notifications;
 	private final JsonMapper jsonMapper;
@@ -24,7 +27,8 @@ public class WelcomeNotificationConsumer {
 		try {
 			event = jsonMapper.readValue(payload, UserRegisteredEvent.class);
 		} catch (Exception e) {
-			throw new IllegalStateException("UserRegisteredEvent 역직렬화 실패", e);
+			log.warn("UserRegisteredEvent 역직렬화 실패 — 메시지 skip: {}", payload, e);
+			return; // poison 무한재시도 방지(다른 소비자와 동일 skip 전략)
 		}
 		if (notifications.existsByUserIdAndType(event.userId(), TYPE)) return; // 베스트에포트 멱등
 		Notification n = new Notification();
