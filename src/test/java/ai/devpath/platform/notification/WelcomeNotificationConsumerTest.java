@@ -1,5 +1,6 @@
 package ai.devpath.platform.notification;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -37,5 +38,11 @@ class WelcomeNotificationConsumerTest {
 		final Long savedUserId = u.getId();
 		assertEquals(1, notifications.findAll().stream()
 				.filter(n -> n.getUserId().equals(savedUserId) && n.getType().equals("WELCOME")).count());
+	}
+
+	@Test
+	void poisonPayloadIsSkippedWithoutThrowing() {
+		// 역직렬화 불가 payload는 예외 없이 skip(다른 소비자와 동일, Kafka 무한재시도 방지).
+		assertDoesNotThrow(() -> consumer.onUserRegistered("{ not-json"));
 	}
 }
