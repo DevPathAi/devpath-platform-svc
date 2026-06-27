@@ -49,6 +49,7 @@ devpath:
     access-ttl: ${ACCESS_TTL:PT15M}
     refresh-ttl: ${REFRESH_TTL:P14D}
     web-url: ${APP_WEB_URL:http://localhost:5173}
+    mobile-redirect-uri: ${APP_MOBILE_REDIRECT_URI:devpath://callback}
     cookie-domain: ${COOKIE_DOMAIN:}
     cookie-secure: ${COOKIE_SECURE:false}
     cookie-same-site: ${COOKIE_SAME_SITE:Lax}

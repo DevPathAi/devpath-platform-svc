@@ -9,6 +9,7 @@ public class AuthProperties {
 	private Duration accessTtl = Duration.ofMinutes(15);
 	private Duration refreshTtl = Duration.ofDays(14);
 	private String webUrl;
+	private String mobileRedirectUri = "devpath://callback";
 	private String cookieDomain = "";
 	private boolean cookieSecure = false;
 	private String cookieSameSite = "Lax";
@@ -21,6 +22,8 @@ public class AuthProperties {
 	public void setRefreshTtl(Duration v) { this.refreshTtl = v; }
 	public String getWebUrl() { return webUrl; }
 	public void setWebUrl(String v) { this.webUrl = v; }
+	public String getMobileRedirectUri() { return mobileRedirectUri; }
+	public void setMobileRedirectUri(String v) { this.mobileRedirectUri = v; }
 	public String getCookieDomain() { return cookieDomain; }
 	public void setCookieDomain(String v) { this.cookieDomain = v; }
 	public boolean isCookieSecure() { return cookieSecure; }
