@@ -41,12 +41,15 @@ public class DeviceController {
 		return ResponseEntity.noContent().build();
 	}
 
-	/** 토큰 해제(로그아웃/기기 해지). 없으면 무시(멱등). */
+	/** 토큰 해제(로그아웃/기기 해지). 없으면 무시(멱등). 본인 소유 토큰만 삭제(IDOR 방지). */
 	@DeleteMapping
 	public ResponseEntity<Void> unregister(@AuthenticationPrincipal Jwt jwt,
 			@RequestBody(required = false) DeviceRegistrationRequest body) {
 		if (body != null && !isBlank(body.token())) {
-			devices.findByToken(body.token()).ifPresent(devices::delete);
+			long userId = Long.parseLong(jwt.getSubject());
+			devices.findByToken(body.token())
+					.filter(t -> t.getUserId() != null && t.getUserId() == userId)
+					.ifPresent(devices::delete);
 		}
 		return ResponseEntity.noContent().build();
 	}

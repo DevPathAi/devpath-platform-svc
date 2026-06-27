@@ -67,14 +67,27 @@ class DeviceControllerUnitTest {
 	}
 
 	@Test
-	void unregisterDeletesIfPresent() {
+	void unregisterDeletesOwnTokenIfPresent() {
 		DeviceToken existing = new DeviceToken();
+		existing.setUserId(7L); // 호출자(jwt sub=7) 소유
 		when(repo.findByToken("tok")).thenReturn(Optional.of(existing));
 
 		ResponseEntity<Void> r = controller.unregister(jwt, new DeviceRegistrationRequest("tok", null));
 
 		assertEquals(204, r.getStatusCode().value());
 		verify(repo).delete(existing);
+	}
+
+	@Test
+	void unregisterDoesNotDeleteOthersToken() {
+		DeviceToken othersToken = new DeviceToken();
+		othersToken.setUserId(99L); // 다른 사용자 소유 → 삭제 금지(IDOR 방지)
+		when(repo.findByToken("tok")).thenReturn(Optional.of(othersToken));
+
+		ResponseEntity<Void> r = controller.unregister(jwt, new DeviceRegistrationRequest("tok", null));
+
+		assertEquals(204, r.getStatusCode().value());
+		verify(repo, never()).delete(any());
 	}
 
 	@Test
