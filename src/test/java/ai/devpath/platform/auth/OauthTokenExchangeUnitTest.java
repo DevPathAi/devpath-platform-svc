@@ -3,6 +3,7 @@ package ai.devpath.platform.auth;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ai.devpath.platform.auth.dto.LoginResponse;
@@ -85,5 +86,37 @@ class OauthTokenExchangeUnitTest {
 		assertEquals(401, controller.exchange(null).getStatusCode().value());
 		assertEquals(401, controller.exchange(new OauthTokenRequest(null, VERIFIER)).getStatusCode().value());
 		assertEquals(401, controller.exchange(new OauthTokenRequest("the-code", "  ")).getStatusCode().value());
+	}
+
+	/**
+	 * 안티-리플레이: verifier가 틀려도 code는 이미 소비(burn)된다. consume이 검증보다 먼저
+	 * 호출되므로(소비-후-검증), 탈취된 code로 verifier를 바꿔가며 재시도해도 두 번째부터는
+	 * code가 없어 실패한다. 본 테스트는 실패 교환에서도 consume이 1회 호출됨을 고정한다.
+	 */
+	@Test
+	void failedExchangeStillConsumesCodeOnce() {
+		when(codes.consume("the-code")).thenReturn(Optional.of(new AuthCodeStore.Consumed(7L, CHALLENGE)));
+		controller.exchange(new OauthTokenRequest("the-code", "wrong-verifier"));
+		verify(codes).consume("the-code");
+	}
+
+	/**
+	 * 다운그레이드 차단: challenge가 빈 code(=PKCE 없이 발급된 것처럼 보이는 값)는 어떤
+	 * verifier로도 교환되지 않는다(빈 challenge는 {@link Pkce#matches}가 항상 false).
+	 */
+	@Test
+	void emptyChallengeCannotBeExchanged() {
+		when(codes.consume("the-code")).thenReturn(Optional.of(new AuthCodeStore.Consumed(7L, "")));
+		ResponseEntity<?> r = controller.exchange(new OauthTokenRequest("the-code", VERIFIER));
+		assertEquals(401, r.getStatusCode().value());
+	}
+
+	/** PKCE는 통과했지만 사용자 행이 사라진 경우(발급 후 탈퇴 등) → 401. */
+	@Test
+	void userMissingAfterValidPkceIs401() {
+		when(codes.consume("the-code")).thenReturn(Optional.of(new AuthCodeStore.Consumed(999L, CHALLENGE)));
+		when(users.findById(999L)).thenReturn(Optional.empty());
+		ResponseEntity<?> r = controller.exchange(new OauthTokenRequest("the-code", VERIFIER));
+		assertEquals(401, r.getStatusCode().value());
 	}
 }
