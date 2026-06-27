@@ -1,6 +1,7 @@
 package ai.devpath.platform.auth;
 
 import ai.devpath.platform.auth.dto.LoginResponse;
+import ai.devpath.platform.auth.dto.OauthTokenRequest;
 import ai.devpath.platform.auth.dto.RefreshRequest;
 import ai.devpath.platform.auth.dto.UserSummary;
 import ai.devpath.platform.auth.jwt.JwtService;
@@ -25,12 +26,38 @@ public class AuthController {
 	private final JwtService jwt;
 	private final RefreshCookies cookies;
 	private final UserRepository users;
+	private final AuthCodeStore authCodeStore;
 
-	public AuthController(RefreshTokenStore refreshStore, JwtService jwt, RefreshCookies cookies, UserRepository users) {
+	public AuthController(RefreshTokenStore refreshStore, JwtService jwt, RefreshCookies cookies,
+			UserRepository users, AuthCodeStore authCodeStore) {
 		this.refreshStore = refreshStore;
 		this.jwt = jwt;
 		this.cookies = cookies;
 		this.users = users;
+		this.authCodeStore = authCodeStore;
+	}
+
+	/**
+	 * 모바일 PKCE 토큰 교환. 딥링크로 받은 일회용 {@code code}와 {@code code_verifier}를 검증해
+	 * access(mint)+refresh(issue)를 바디로 반환한다. code는 1회성·단명이며, verifier가 발급 시
+	 * 저장된 challenge와 S256으로 일치해야 한다. 어느 검증이라도 실패하면 401.
+	 */
+	@PostMapping("/oauth/token")
+	public ResponseEntity<?> exchange(@RequestBody(required = false) OauthTokenRequest body) {
+		if (body == null || body.code() == null || body.code().isBlank()
+				|| body.codeVerifier() == null || body.codeVerifier().isBlank()) {
+			return ResponseEntity.status(401).build();
+		}
+		Optional<AuthCodeStore.Consumed> consumed = authCodeStore.consume(body.code());
+		if (consumed.isEmpty() || !Pkce.matches(body.codeVerifier(), consumed.get().codeChallenge())) {
+			return ResponseEntity.status(401).build();
+		}
+		User user = users.findById(consumed.get().userId()).orElse(null);
+		if (user == null) return ResponseEntity.status(401).build();
+
+		String access = jwt.mintAccessToken(user.getId(), user.getRole());
+		String refresh = refreshStore.issue(user.getId());
+		return ResponseEntity.ok(new LoginResponse(access, refresh, false, UserSummary.of(user)));
 	}
 
 	@PostMapping("/refresh")

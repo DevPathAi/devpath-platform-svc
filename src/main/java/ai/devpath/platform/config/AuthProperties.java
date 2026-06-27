@@ -8,6 +8,7 @@ public class AuthProperties {
 	private String jwtSecret;
 	private Duration accessTtl = Duration.ofMinutes(15);
 	private Duration refreshTtl = Duration.ofDays(14);
+	private Duration authCodeTtl = Duration.ofSeconds(60);
 	private String webUrl;
 	private String mobileRedirectUri = "devpath://callback";
 	private String cookieDomain = "";
@@ -20,6 +21,8 @@ public class AuthProperties {
 	public void setAccessTtl(Duration v) { this.accessTtl = v; }
 	public Duration getRefreshTtl() { return refreshTtl; }
 	public void setRefreshTtl(Duration v) { this.refreshTtl = v; }
+	public Duration getAuthCodeTtl() { return authCodeTtl; }
+	public void setAuthCodeTtl(Duration v) { this.authCodeTtl = v; }
 	public String getWebUrl() { return webUrl; }
 	public void setWebUrl(String v) { this.webUrl = v; }
 	public String getMobileRedirectUri() { return mobileRedirectUri; }

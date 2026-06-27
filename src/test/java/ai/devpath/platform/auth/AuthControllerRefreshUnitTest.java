@@ -37,7 +37,7 @@ class AuthControllerRefreshUnitTest {
 		jwt = mock(JwtService.class);
 		users = mock(UserRepository.class);
 		AuthProperties props = new AuthProperties();
-		controller = new AuthController(store, jwt, new RefreshCookies(props), users);
+		controller = new AuthController(store, jwt, new RefreshCookies(props), users, mock(AuthCodeStore.class));
 
 		User u = mock(User.class);
 		when(u.getId()).thenReturn(7L);
