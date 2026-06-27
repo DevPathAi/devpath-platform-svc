@@ -1,7 +1,6 @@
 package ai.devpath.platform.auth;
 
 import ai.devpath.platform.config.AuthProperties;
-import ai.devpath.platform.auth.jwt.JwtService;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,17 +23,17 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 	private final RefreshCookies cookies;
 	private final AuthProperties props;
 	private final OAuth2AuthorizedClientService authorizedClients;
-	private final JwtService jwt;
+	private final AuthCodeStore authCodeStore;
 
 	public OAuth2LoginSuccessHandler(UserRegistrationService registration, RefreshTokenStore refreshStore,
 			RefreshCookies cookies, AuthProperties props,
-			OAuth2AuthorizedClientService authorizedClients, JwtService jwt) {
+			OAuth2AuthorizedClientService authorizedClients, AuthCodeStore authCodeStore) {
 		this.registration = registration;
 		this.refreshStore = refreshStore;
 		this.cookies = cookies;
 		this.props = props;
 		this.authorizedClients = authorizedClients;
-		this.jwt = jwt;
+		this.authCodeStore = authCodeStore;
 	}
 
 	@Override
@@ -58,23 +57,21 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		var user = registration.registerOrFind(
 				new UserRegistrationService.OauthUser(provider, providerUserId, email, nickname, accessToken));
 
-		String refresh = refreshStore.issue(user.getId());
-
-		// 모바일 플로우는 state 마커로 식별(MobileAwareAuthorizationRequestResolver가 부여).
+		// 모바일(PKCE) 플로우는 state 마커로 식별(MobileAwareAuthorizationRequestResolver가 부여).
+		// state = "<csrf>.mobile.<code_challenge>".
 		String state = request.getParameter("state");
-		boolean mobile = state != null && state.endsWith(MobileAwareAuthorizationRequestResolver.MOBILE_STATE_SUFFIX);
-		if (mobile) {
-			// 네이티브: 쿠키를 못 읽으므로 access(즉시 mint)+refresh를 커스텀 스킴 fragment로 전달.
-			// fragment(#)는 서버로 전송되지 않아 query보다 토큰 노출 위험이 낮다.
-			String access = jwt.mintAccessToken(user.getId(), user.getRole());
-			String target = props.getMobileRedirectUri()
-					+ "#access_token=" + enc(access)
-					+ "&refresh_token=" + enc(refresh);
-			response.sendRedirect(target);
+		int marker = state == null ? -1 : state.indexOf(MobileAwareAuthorizationRequestResolver.MOBILE_STATE_MARKER);
+		if (marker >= 0) {
+			// 네이티브: 토큰을 URL에 싣지 않는다. 단명·1회용 code만 딥링크로 전달하고,
+			// 앱이 POST /auth/oauth/token에서 code_verifier와 함께 교환해 토큰을 받는다.
+			String challenge = state.substring(marker + MobileAwareAuthorizationRequestResolver.MOBILE_STATE_MARKER.length());
+			String code = authCodeStore.issue(user.getId(), challenge);
+			response.sendRedirect(props.getMobileRedirectUri() + "?code=" + enc(code));
 			return;
 		}
 
 		// 웹: refresh는 HttpOnly 쿠키, 프론트 콜백 페이지로 리다이렉트(access는 후속 /auth/refresh로 수령).
+		String refresh = refreshStore.issue(user.getId());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookies.create(refresh).toString());
 		response.sendRedirect(props.getWebUrl() + "/auth/callback");
 	}
