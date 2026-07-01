@@ -100,10 +100,10 @@ GitHub 인증 → 백엔드 success handler:
 
 **목표**: 로그인 사용자에 FCM 디바이스 토큰을 연결해 타깃 푸시 가능하게.
 
-### 백엔드 (platform-svc, notification 모듈 존재)
+### 백엔드 (2026-07-01부터 devpath-notification-svc, 게이트웨이 `/notifications/**` 경유 — platform-svc에서 이관됨)
 - `POST /notifications/devices`(Bearer): `{ "token": "...", "platform": "ANDROID|IOS" }` → 사용자별 upsert(중복 제거).
 - `DELETE /notifications/devices`(또는 logout 시): 해당 토큰 폐기.
-- 저장: `device_tokens(user_id, token, platform, updated_at)`(중앙 마이그레이션 추가).
+- 저장: `device_tokens(user_id, token, platform, updated_at)`(devpath-shared 중앙 마이그레이션, 서비스 이관과 무관하게 테이블은 그대로).
 
 ### 모바일
 - 로그인/부팅 인증 후: `FcmPushService.getToken()`(이미 존재, `push_service.dart`) → 등록 호출.

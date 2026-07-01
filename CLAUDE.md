@@ -1,6 +1,6 @@
 # CLAUDE.md — devpath-platform-svc
 
-> 플랫폼 서비스 — 사용자/인증, GitHub 수집, 알림
+> 플랫폼 서비스 — 사용자/인증, GitHub 수집
 
 ## 🚫 절대 조건 — 모든 작업에 예외 없이 적용
 
@@ -45,7 +45,9 @@
 |------|------|
 | user | 계정·OAuth2·JWT |
 | github | GitHub 프로필/활동 수집 워커 |
-| notification | 알림(리텐션 루프) |
+
+> `notification`(FCM 디바이스 토큰, 인앱 알림) 모듈은 2026-07-01 [devpath-notification-svc](https://github.com/DevPathAi/devpath-notification-svc)로 이관되었다. 이 레포에는 더 이상 존재하지 않는다.
+
 ## 공통 규칙
 
 - Git: Conventional Commits — [documents/09_Git_규칙_정의서](https://github.com/DevPathAi/documents/blob/main/09_Git_규칙_정의서.md)
