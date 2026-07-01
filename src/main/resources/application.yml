@@ -48,7 +48,9 @@ devpath:
     jwt-secret: ${JWT_SECRET:test-secret-please-change-min-32-bytes-long-0123456789}
     access-ttl: ${ACCESS_TTL:PT15M}
     refresh-ttl: ${REFRESH_TTL:P14D}
+    auth-code-ttl: ${AUTH_CODE_TTL:PT60S}
     web-url: ${APP_WEB_URL:http://localhost:5173}
+    mobile-redirect-uri: ${APP_MOBILE_REDIRECT_URI:devpath://callback}
     cookie-domain: ${COOKIE_DOMAIN:}
     cookie-secure: ${COOKIE_SECURE:false}
     cookie-same-site: ${COOKIE_SAME_SITE:Lax}
