@@ -74,7 +74,7 @@ public class AuthController {
 		if (rotated.isEmpty()) return ResponseEntity.status(401).build();
 
 		User user = users.findById(rotated.get().userId()).orElse(null);
-		if (user == null) return ResponseEntity.status(401).build();
+		if (user == null || user.getDeletedAt() != null) return ResponseEntity.status(401).build();
 
 		String access = jwt.mintAccessToken(user.getId(), user.getRole());
 		if (fromBody) {
