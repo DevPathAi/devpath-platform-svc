@@ -53,6 +53,8 @@ dependencies {
 	testImplementation("org.flywaydb:flyway-database-postgresql")
 	testCompileOnly("org.projectlombok:lombok")
 	testImplementation("org.awaitility:awaitility")
+	testImplementation("no.nav.security:mock-oauth2-server:2.1.10")
+	testImplementation("org.springframework.boot:spring-boot-restclient")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testAnnotationProcessor("org.projectlombok:lombok")
 }
