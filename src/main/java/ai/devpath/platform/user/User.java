@@ -13,6 +13,9 @@ public class User {
 	@Column(nullable = false) private String role = "LEARNER";
 	@Column(nullable = false) private String status = "ACTIVE";
 	@Column(name = "onboarding_status", nullable = false) private String onboardingStatus = "PENDING";
+	@Column(name = "consent_status", nullable = false) private String consentStatus = "PENDING";
+	@Column(name = "birth_year") private Integer birthYear;
+	@Column(name = "deleted_at") private Instant deletedAt;
 	@Column(name = "created_at", insertable = false, updatable = false) private Instant createdAt;
 	@Column(name = "updated_at", insertable = false, updatable = false) private Instant updatedAt;
 	@Column(name = "last_active_at", insertable = false, updatable = false) private Instant lastActiveAt;
@@ -28,5 +31,11 @@ public class User {
 	public void setStatus(String v) { this.status = v; }
 	public String getOnboardingStatus() { return onboardingStatus; }
 	public void setOnboardingStatus(String v) { this.onboardingStatus = v; }
+	public String getConsentStatus() { return consentStatus; }
+	public void setConsentStatus(String v) { this.consentStatus = v; }
+	public Integer getBirthYear() { return birthYear; }
+	public void setBirthYear(Integer v) { this.birthYear = v; }
+	public Instant getDeletedAt() { return deletedAt; }
+	public void setDeletedAt(Instant v) { this.deletedAt = v; }
 	public Instant getCreatedAt() { return createdAt; }
 }
