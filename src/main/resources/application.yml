@@ -33,6 +33,10 @@ spring:
             client-id: ${GITHUB_CLIENT_ID:dummy-client-id}
             client-secret: ${GITHUB_CLIENT_SECRET:dummy-secret}
             scope: read:user,user:email
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:dummy-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy-secret}
+            scope: openid,profile,email
 
 server:
   port: 8080
