@@ -51,14 +51,14 @@ class ProfileControllerTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    "{\"bio\":\"백엔드 지망\",\"learningGoal\":\"취업\",\"targetTrack\":\"BACKEND\",\"experienceYears\":2}"))
+                    "{\"bio\":\"백엔드 지망\",\"learningGoal\":\"JOB\",\"targetTrack\":\"BACKEND_SPRING\",\"experienceYears\":2}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.bio").value("백엔드 지망"))
         .andExpect(jsonPath("$.experienceYears").value(2));
 
     mvc.perform(get("/users/me/profile").header("Authorization", "Bearer " + token))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.targetTrack").value("BACKEND"));
+        .andExpect(jsonPath("$.targetTrack").value("BACKEND_SPRING"));
   }
 
   @Test
