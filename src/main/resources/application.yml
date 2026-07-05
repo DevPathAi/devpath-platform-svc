@@ -54,3 +54,7 @@ devpath:
     cookie-domain: ${COOKIE_DOMAIN:}
     cookie-secure: ${COOKIE_SECURE:false}
     cookie-same-site: ${COOKIE_SAME_SITE:Lax}
+# devpath.storage.*(endpoint/bucket/access-key/secret-key/public-base-url)는 배포 환경변수
+# DEVPATH_STORAGE_*로 주입한다(@ConfigurationProperties relaxed binding). application.yml에
+# endpoint 기본값(빈 문자열)을 두면 @ConditionalOnProperty가 활성화돼 S3Client가 빈 endpoint로
+# 생성되며 전체 컨텍스트가 깨지므로, 여기서는 정의하지 않는다. endpoint 미설정 시 스토리지 비활성.
