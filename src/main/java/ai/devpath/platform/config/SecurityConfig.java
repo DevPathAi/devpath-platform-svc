@@ -59,6 +59,7 @@ public class SecurityConfig {
 	public SecurityFilterChain securityFilterChain(
 			HttpSecurity http,
 			ai.devpath.platform.auth.OAuth2LoginSuccessHandler successHandler,
+			ai.devpath.platform.auth.GithubEmailOAuth2UserService githubEmailService,
 			OAuth2AuthorizationRequestResolver authorizationRequestResolver) throws Exception {
 		http
 			.csrf(csrf -> csrf.disable())
@@ -67,6 +68,7 @@ public class SecurityConfig {
 				.anyRequest().authenticated())
 			.oauth2Login(oauth -> oauth
 				.authorizationEndpoint(a -> a.authorizationRequestResolver(authorizationRequestResolver))
+				.userInfoEndpoint(u -> u.userService(githubEmailService))
 				.successHandler(successHandler))
 			.oauth2ResourceServer(rs -> rs.jwt(Customizer.withDefaults()));
 		return http.build();
