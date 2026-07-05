@@ -1,6 +1,7 @@
 package ai.devpath.platform.auth;
 
 import ai.devpath.platform.config.AuthProperties;
+import ai.devpath.platform.user.User;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -43,7 +44,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		String registrationId = token.getAuthorizedClientRegistrationId();
 		String provider = registrationId.toUpperCase();
 		Map<String, Object> attrs = token.getPrincipal().getAttributes();
-		String providerUserId = String.valueOf(attrs.get("id"));
+		String providerUserId = token.getPrincipal().getName();
 		String nickname = attrs.get("name") != null
 				? String.valueOf(attrs.get("name"))
 				: String.valueOf(attrs.get("login"));
@@ -54,8 +55,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		String accessToken = (client != null && client.getAccessToken() != null)
 				? client.getAccessToken().getTokenValue() : null;
 
-		var user = registration.registerOrFind(
-				new UserRegistrationService.OauthUser(provider, providerUserId, email, nickname, accessToken));
+		User user;
+		try {
+			user = registration.registerOrFind(
+					new UserRegistrationService.OauthUser(provider, providerUserId, email, nickname, accessToken));
+		} catch (MissingEmailException e) {
+			response.sendRedirect(props.getWebUrl() + "/login?error=email_required");
+			return;
+		}
 
 		// 모바일(PKCE) 플로우는 state 마커로 식별(MobileAwareAuthorizationRequestResolver가 부여).
 		// state = "<csrf>.mobile.<code_challenge>".

@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long> {
+
+  java.util.Optional<User> findByEmail(String email);
+
   @Modifying
   @Query("update User u set u.onboardingStatus = 'IN_PROGRESS' "
        + "where u.id = :userId and u.onboardingStatus = 'PENDING'")

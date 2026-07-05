@@ -40,29 +40,48 @@ public class UserRegistrationService {
 			return users.findById(existing.get().getUserId()).orElseThrow();
 		}
 
-		User user = new User();
-		user.setEmail(oauth.email());
-		user.setNickname(oauth.nickname());
-		user.setRole("LEARNER");
-		user.setStatus("ACTIVE");
-		user.setOnboardingStatus("PENDING");
-		user = users.save(user);
+		if (oauth.email() == null || oauth.email().isBlank()) {
+			throw new MissingEmailException(oauth.provider());
+		}
+
+		var byEmail = users.findByEmail(oauth.email());
+		boolean isNew = byEmail.isEmpty();
+		User user;
+		if (byEmail.isPresent()) {
+			user = byEmail.get(); // 이메일 통합: 기존 User에 identity만 추가
+		} else {
+			user = new User();
+			user.setEmail(oauth.email());
+			user.setNickname(oauth.nickname());
+			user.setRole("LEARNER");
+			user.setStatus("ACTIVE");
+			user.setOnboardingStatus("PENDING");
+			user = users.save(user);
+			UserProfile profile = new UserProfile();
+			profile.setUserId(user.getId());
+			profiles.save(profile);
+		}
 
 		UserOauthIdentity identity = new UserOauthIdentity();
 		identity.setUserId(user.getId());
 		identity.setProvider(oauth.provider());
 		identity.setProviderUserId(oauth.providerUserId());
 		if (oauth.accessToken() != null) identity.setAccessTokenEncrypted(cipher.encrypt(oauth.accessToken()));
-		identity.setScope("read:user,user:email");
+		identity.setScope(scopeFor(oauth.provider()));
 		identity.setLinkedAt(Instant.now());
 		identities.save(identity);
 
-		UserProfile profile = new UserProfile();
-		profile.setUserId(user.getId());
-		profiles.save(profile);
-
-		writeOutbox(user, oauth.provider());
+		if (isNew) {
+			writeOutbox(user, oauth.provider());
+		}
 		return user;
+	}
+
+	private static String scopeFor(String provider) {
+		return switch (provider) {
+			case "GOOGLE" -> "openid,profile,email";
+			default -> "read:user,user:email";
+		};
 	}
 
 	private void writeOutbox(User user, String provider) {

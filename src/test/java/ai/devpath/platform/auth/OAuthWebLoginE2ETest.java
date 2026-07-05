@@ -29,7 +29,9 @@ import org.springframework.util.MultiValueMap;
 
 /**
  * 웹 OAuth 로그인 전 흐름 e2e(R4): mock provider로 authorize→callback→refresh 쿠키→
- * /auth/refresh→user를 실 Spring Security 필터체인으로 검증. 실 GitHub은 런북 참조.
+ * /auth/refresh→user를 실 Spring Security 필터체인으로 검증. 실 GitHub/Google은 런북 수동검증
+ * (Google OIDC는 mock id_token/discovery 통합 이슈로 e2e 제외 — 핵심 로직은 UserRegistrationServiceTest·
+ * OAuth2LoginSuccessHandlerTest로 검증. registration.google 설정은 실서버용으로 유지).
  *
  * <p>주의: TestRestTemplate은 302를 자동 추적하지 않도록 리다이렉트를 수동 처리하고
  * (Location + Set-Cookie를 단계별로 이어붙임), state 바인딩용 세션 쿠키를 보존한다.
