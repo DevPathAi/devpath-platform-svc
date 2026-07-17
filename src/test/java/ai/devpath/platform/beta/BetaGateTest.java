@@ -58,4 +58,13 @@ class BetaGateTest {
         assertThat(u.getStatus()).isEqualTo("ACTIVE");
         verify(users).save(u);
     }
+
+    @Test
+    void adminUser_isAdmittedWithoutAllowlistCheck() {
+        User u = user("admin@devpath.ai", "ACTIVE");
+        u.setRole("ADMIN");
+        assertThat(gate.admit(u)).isTrue();
+        verify(allow, never()).existsByEmail(any());
+        verify(outbox, never()).save(any());
+    }
 }

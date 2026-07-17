@@ -123,4 +123,44 @@ class MobileAwareAuthorizationRequestResolverTest {
 
 		assertNull(resolver.resolve(req));
 	}
+
+	@Test
+	void adminClientTypeAppendsAdminMarker() {
+		OAuth2AuthorizationRequestResolver delegate = mock(OAuth2AuthorizationRequestResolver.class);
+		var resolver = new MobileAwareAuthorizationRequestResolver(delegate);
+		MockHttpServletRequest req = new MockHttpServletRequest();
+		req.setParameter("client_type", "admin");
+		when(delegate.resolve(req)).thenReturn(base());
+
+		assertEquals("STATE123" + MobileAwareAuthorizationRequestResolver.ADMIN_STATE_MARKER,
+				resolver.resolve(req).getState());
+	}
+
+	@Test
+	void adminMarkerReflectedInAuthorizationRequestUri() {
+		ClientRegistration github = ClientRegistration.withRegistrationId("github")
+				.clientId("test-client")
+				.clientSecret("test-secret")
+				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+				.redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+				.authorizationUri("https://github.com/login/oauth/authorize")
+				.tokenUri("https://github.com/login/oauth/access_token")
+				.userInfoUri("https://api.github.com/user")
+				.userNameAttributeName("id")
+				.scope("read:user")
+				.build();
+		var realDelegate = new DefaultOAuth2AuthorizationRequestResolver(
+				new InMemoryClientRegistrationRepository(github), "/oauth2/authorization");
+		var resolver = new MobileAwareAuthorizationRequestResolver(realDelegate);
+
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/oauth2/authorization/github");
+		req.setServletPath("/oauth2/authorization/github");
+		req.setParameter("client_type", "admin");
+
+		OAuth2AuthorizationRequest resolved = resolver.resolve(req);
+		String marker = MobileAwareAuthorizationRequestResolver.ADMIN_STATE_MARKER;
+		assertTrue(resolved.getState().endsWith(marker));
+		assertTrue(resolved.getAuthorizationRequestUri().contains(marker),
+				"실제 전송 URI의 state에도 admin 마커가 반영돼야 함: " + resolved.getAuthorizationRequestUri());
+	}
 }

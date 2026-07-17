@@ -90,6 +90,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			return;
 		}
 
+		// admin 웹 콘솔: 웹과 동일하게 refresh 쿠키를 발급하되 adminUrl 콜백으로 복귀.
+		if (state != null && state.contains(MobileAwareAuthorizationRequestResolver.ADMIN_STATE_MARKER)) {
+			String refreshAdmin = refreshStore.issue(user.getId());
+			response.addHeader(HttpHeaders.SET_COOKIE, cookies.create(refreshAdmin).toString());
+			response.sendRedirect(props.getAdminUrl() + "/auth/callback");
+			return;
+		}
+
 		// 웹: refresh는 HttpOnly 쿠키, 프론트 콜백 페이지로 리다이렉트(access는 후속 /auth/refresh로 수령).
 		String refresh = refreshStore.issue(user.getId());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookies.create(refresh).toString());
