@@ -5,7 +5,7 @@ import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequest
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 
 /**
- * 모바일 OAuth(PKCE) 플로우 식별기.
+ * 모바일/관리자 OAuth 플로우 식별기.
  *
  * <p>네이티브 앱이 {@code /oauth2/authorization/github?client_type=mobile&code_challenge=<cc>
  * &code_challenge_method=S256} 로 로그인을 시작하면, GitHub 왕복 후 콜백(success handler)에서도
@@ -13,10 +13,13 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequ
  * round-trip 되므로, 위임 resolver가 만든 랜덤 state(=CSRF 보호) 뒤에 마커와 challenge를 붙여
  * 그 채널로 전달한다. challenge는 PKCE 규격상 공개값이라 노출돼도 안전하다.
  *
- * <p>state 형태: {@code <csrf>.mobile.<code_challenge>}. 구분자 {@code .}는 base64url
- * 알파벳(A-Za-z0-9-_)에 없어 csrf/challenge와 충돌하지 않으며, URL unreserved라 인코딩 없이
- * 보존된다. success handler({@link OAuth2LoginSuccessHandler})가 마커로 모바일을 식별하고
- * challenge를 분리한다.
+ * <p>웹 관리자 콘솔이 {@code /oauth2/authorization/github?client_type=admin} 로 로그인을 시작하면,
+ * state에 {@code .admin.} 마커를 부여해 success handler가 adminUrl로 복귀하도록 한다.
+ *
+ * <p>state 형태: 모바일={@code <csrf>.mobile.<code_challenge>}, 관리자={@code <csrf>.admin.}.
+ * 구분자 {@code .}는 base64url 알파벳(A-Za-z0-9-_)에 없어 csrf/challenge와 충돌하지 않으며,
+ * URL unreserved라 인코딩 없이 보존된다. success handler({@link OAuth2LoginSuccessHandler})가
+ * 마커로 클라이언트를 식별한다.
  */
 public class MobileAwareAuthorizationRequestResolver implements OAuth2AuthorizationRequestResolver {
 
@@ -24,6 +27,8 @@ public class MobileAwareAuthorizationRequestResolver implements OAuth2Authorizat
 	static final String CODE_CHALLENGE_PARAM = "code_challenge";
 	static final String MOBILE = "mobile";
 	static final String MOBILE_STATE_MARKER = ".mobile.";
+	static final String ADMIN = "admin";
+	static final String ADMIN_STATE_MARKER = ".admin.";
 
 	private final OAuth2AuthorizationRequestResolver delegate;
 
@@ -45,9 +50,16 @@ public class MobileAwareAuthorizationRequestResolver implements OAuth2Authorizat
 		if (req == null) {
 			return null;
 		}
+		String clientType = request.getParameter(CLIENT_TYPE_PARAM);
+		// admin 웹 콘솔: challenge 불요. state에 admin 마커만 부여(success handler가 adminUrl로 복귀).
+		if (ADMIN.equals(clientType)) {
+			return OAuth2AuthorizationRequest.from(req)
+					.state(req.getState() + ADMIN_STATE_MARKER)
+					.build();
+		}
 		String challenge = request.getParameter(CODE_CHALLENGE_PARAM);
 		// 모바일 + PKCE challenge가 모두 있을 때만 마커를 부여한다(없으면 웹 플로우).
-		if (!MOBILE.equals(request.getParameter(CLIENT_TYPE_PARAM)) || challenge == null || challenge.isBlank()) {
+		if (!MOBILE.equals(clientType) || challenge == null || challenge.isBlank()) {
 			return req;
 		}
 		return OAuth2AuthorizationRequest.from(req)
