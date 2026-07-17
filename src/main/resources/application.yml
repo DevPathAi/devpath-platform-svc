@@ -54,6 +54,7 @@ devpath:
     refresh-ttl: ${REFRESH_TTL:P14D}
     auth-code-ttl: ${AUTH_CODE_TTL:PT60S}
     web-url: ${APP_WEB_URL:http://localhost:5173}
+    admin-url: ${APP_ADMIN_URL:http://localhost:5174}
     mobile-redirect-uri: ${APP_MOBILE_REDIRECT_URI:devpath://callback}
     cookie-domain: ${COOKIE_DOMAIN:}
     cookie-secure: ${COOKIE_SECURE:false}

@@ -1,6 +1,7 @@
 package ai.devpath.platform.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -90,8 +91,8 @@ class OAuth2LoginSuccessHandlerBetaTest {
         lenient().when(user.getId()).thenReturn(42L);
         when(registration.registerOrFind(any())).thenReturn(user);
 
-        // props.getWebUrl() needed for both paths
-        when(props.getWebUrl()).thenReturn("https://app.example");
+        // props.getWebUrl() needed for web/pending paths but not admin; use lenient to avoid UnnecessaryStubbingException
+        lenient().when(props.getWebUrl()).thenReturn("https://app.example");
     }
 
     @Test
@@ -126,5 +127,23 @@ class OAuth2LoginSuccessHandlerBetaTest {
         String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
         org.junit.jupiter.api.Assertions.assertNotNull(setCookie, "refresh 쿠키 설정돼야 함");
         assertEquals("https://app.example/auth/callback", response.getRedirectedUrl());
+    }
+
+    @Test
+    void adminMarkedLogin_setsRefreshCookie_redirectsToAdminCallback() throws Exception {
+        when(betaGate.admit(any())).thenReturn(true);
+        when(props.getAdminUrl()).thenReturn("https://admin.example");
+        when(refreshStore.issue(anyLong())).thenReturn("rt");
+        when(cookies.create("rt")).thenReturn(
+                org.springframework.http.ResponseCookie.from("refresh_token", "rt").httpOnly(true).path("/").build());
+        // request.getParameter("state") → csrf.admin.
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setParameter("state", "csrf.admin.");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        assertEquals("https://admin.example/auth/callback", response.getRedirectedUrl());
+        assertNotNull(response.getHeader(HttpHeaders.SET_COOKIE));
     }
 }
