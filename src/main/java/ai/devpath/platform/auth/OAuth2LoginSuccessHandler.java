@@ -1,6 +1,8 @@
 package ai.devpath.platform.auth;
 
+import ai.devpath.platform.beta.BetaGate;
 import ai.devpath.platform.config.AuthProperties;
+import ai.devpath.platform.config.BetaProperties;
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,16 +27,21 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 	private final AuthProperties props;
 	private final OAuth2AuthorizedClientService authorizedClients;
 	private final AuthCodeStore authCodeStore;
+	private final BetaGate betaGate;
+	private final BetaProperties betaProps;
 
 	public OAuth2LoginSuccessHandler(UserRegistrationService registration, RefreshTokenStore refreshStore,
 			RefreshCookies cookies, AuthProperties props,
-			OAuth2AuthorizedClientService authorizedClients, AuthCodeStore authCodeStore) {
+			OAuth2AuthorizedClientService authorizedClients, AuthCodeStore authCodeStore,
+			BetaGate betaGate, BetaProperties betaProps) {
 		this.registration = registration;
 		this.refreshStore = refreshStore;
 		this.cookies = cookies;
 		this.props = props;
 		this.authorizedClients = authorizedClients;
 		this.authCodeStore = authCodeStore;
+		this.betaGate = betaGate;
+		this.betaProps = betaProps;
 	}
 
 	@Override
@@ -61,6 +68,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 					new UserRegistrationService.OauthUser(provider, providerUserId, email, nickname, accessToken));
 		} catch (MissingEmailException e) {
 			response.sendRedirect(props.getWebUrl() + "/login?error=email_required");
+			return;
+		}
+
+		// 베타 게이팅: 허용 목록에 없는 사용자는 토큰·쿠키 발급 없이 대기 페이지로 리다이렉트.
+		if (!betaGate.admit(user)) {
+			response.sendRedirect(props.getWebUrl() + betaProps.getPendingRedirect());
 			return;
 		}
 

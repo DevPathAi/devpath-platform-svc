@@ -9,7 +9,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
+import ai.devpath.platform.beta.BetaGate;
 import ai.devpath.platform.config.AuthProperties;
+import ai.devpath.platform.config.BetaProperties;
 import ai.devpath.platform.user.User;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,8 @@ class OAuth2LoginSuccessHandlerMobileTest {
 	private AuthCodeStore authCodeStore;
 	private OAuth2AuthorizedClientService authorizedClients;
 	private AuthProperties props;
+	private BetaGate betaGate;
+	private BetaProperties betaProperties;
 	private OAuth2LoginSuccessHandler handler;
 
 	@BeforeEach
@@ -45,6 +49,8 @@ class OAuth2LoginSuccessHandlerMobileTest {
 		refreshStore = mock(RefreshTokenStore.class);
 		authCodeStore = mock(AuthCodeStore.class);
 		authorizedClients = mock(OAuth2AuthorizedClientService.class);
+		betaGate = mock(BetaGate.class);
+		betaProperties = mock(BetaProperties.class);
 
 		props = new AuthProperties();
 		props.setWebUrl("https://web.devpath.ai");
@@ -56,9 +62,12 @@ class OAuth2LoginSuccessHandlerMobileTest {
 		when(refreshStore.issue(7L)).thenReturn(ISSUED_REFRESH);
 		when(authCodeStore.issue(7L, CHALLENGE)).thenReturn(ISSUED_CODE);
 		when(authorizedClients.loadAuthorizedClient(anyString(), anyString())).thenReturn(null);
+		// 베타 게이팅: 기존 모바일/웹 플로우 테스트에서는 admit=true로 통과
+		when(betaGate.admit(any())).thenReturn(true);
 
 		handler = new OAuth2LoginSuccessHandler(
-				registration, refreshStore, new RefreshCookies(props), props, authorizedClients, authCodeStore);
+				registration, refreshStore, new RefreshCookies(props), props, authorizedClients, authCodeStore,
+				betaGate, betaProperties);
 	}
 
 	private OAuth2AuthenticationToken githubAuth() {
