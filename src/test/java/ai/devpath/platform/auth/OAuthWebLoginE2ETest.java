@@ -9,6 +9,7 @@ import no.nav.security.mock.oauth2.MockOAuth2Server;
 import no.nav.security.mock.oauth2.token.DefaultOAuth2TokenCallback;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -89,6 +90,17 @@ class OAuthWebLoginE2ETest {
 
 	@LocalServerPort int port;
 	@Autowired TestRestTemplate restTemplate;
+	@Autowired ai.devpath.platform.beta.BetaAllowlistRepository betaAllowlist;
+
+	@BeforeEach
+	void seedAllowlist() {
+		String email = "smoke@devpath.test";
+		if (!betaAllowlist.existsByEmail(email)) {
+			ai.devpath.platform.beta.BetaAllowlist row = new ai.devpath.platform.beta.BetaAllowlist();
+			row.setEmail(email);
+			betaAllowlist.save(row);
+		}
+	}
 
 	@Test
 	void webLoginFlow_redirectsToCallback_setsRefreshCookie_andRefreshReturnsUser() {

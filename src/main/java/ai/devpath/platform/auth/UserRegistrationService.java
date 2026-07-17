@@ -1,6 +1,8 @@
 package ai.devpath.platform.auth;
 
 import ai.devpath.platform.auth.crypto.TokenCipher;
+import ai.devpath.platform.beta.BetaGate;
+import ai.devpath.platform.config.BetaProperties;
 import ai.devpath.platform.outbox.OutboxEntry;
 import ai.devpath.platform.outbox.OutboxRepository;
 import ai.devpath.platform.user.*;
@@ -22,15 +24,18 @@ public class UserRegistrationService {
 	private final OutboxRepository outbox;
 	private final TokenCipher cipher;
 	private final JsonMapper jsonMapper;
+	private final BetaProperties betaProps;
 
 	public UserRegistrationService(UserRepository users, UserOauthIdentityRepository identities,
-			UserProfileRepository profiles, OutboxRepository outbox, TokenCipher cipher, JsonMapper jsonMapper) {
+			UserProfileRepository profiles, OutboxRepository outbox, TokenCipher cipher, JsonMapper jsonMapper,
+			BetaProperties betaProps) {
 		this.users = users;
 		this.identities = identities;
 		this.profiles = profiles;
 		this.outbox = outbox;
 		this.cipher = cipher;
 		this.jsonMapper = jsonMapper;
+		this.betaProps = betaProps;
 	}
 
 	@Transactional
@@ -53,7 +58,7 @@ public class UserRegistrationService {
 			user = new User();
 			user.setEmail(oauth.email());
 			user.setNickname(oauth.nickname());
-			user.setRole("LEARNER");
+			user.setRole(isAdmin(oauth.email()) ? "ADMIN" : "LEARNER");
 			user.setStatus("ACTIVE");
 			user.setOnboardingStatus("PENDING");
 			user = users.save(user);
@@ -75,6 +80,12 @@ public class UserRegistrationService {
 			writeOutbox(user, oauth.provider());
 		}
 		return user;
+	}
+
+	private boolean isAdmin(String email) {
+		String n = BetaGate.normalize(email);
+		return n != null && betaProps.getAdminEmails().stream()
+				.map(BetaGate::normalize).anyMatch(n::equals);
 	}
 
 	private static String scopeFor(String provider) {

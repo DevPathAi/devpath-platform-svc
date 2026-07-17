@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+import ai.devpath.platform.beta.BetaGate;
+import ai.devpath.platform.config.BetaProperties;
 import ai.devpath.platform.user.UserOauthIdentityRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -36,6 +38,8 @@ class OAuth2LoginSuccessHandlerTest {
 	@Autowired UserOauthIdentityRepository identities;
 
 	@MockitoBean OAuth2AuthorizedClientService authorizedClientService;
+	@MockitoBean BetaGate betaGate;
+	@MockitoBean BetaProperties betaProperties;
 
 	@Test
 	void onSuccessUpsertsUserSetsRefreshCookieAndRedirects() throws Exception {
@@ -65,6 +69,9 @@ class OAuth2LoginSuccessHandlerTest {
 
 		when(authorizedClientService.loadAuthorizedClient(eq("github"), any()))
 				.thenReturn(authorizedClient);
+
+		// 베타 게이팅: 기존 웹 플로우 테스트에서는 admit=true로 통과
+		when(betaGate.admit(any())).thenReturn(true);
 
 		HttpServletRequest req = new MockHttpServletRequest();
 		MockHttpServletResponse res = new MockHttpServletResponse();
