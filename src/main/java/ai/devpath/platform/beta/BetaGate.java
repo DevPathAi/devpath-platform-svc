@@ -37,6 +37,9 @@ public class BetaGate {
 
     @Transactional
     public boolean admit(User user) {
+        if ("ADMIN".equals(user.getRole())) {
+            return true; // 관리자는 베타 게이트 우회(allowlist 무관) — 승인 주체이므로 항상 입장.
+        }
         boolean allowed = allowlist.existsByEmail(normalize(user.getEmail()));
         if (allowed) {
             if (PENDING.equals(user.getStatus())) {
