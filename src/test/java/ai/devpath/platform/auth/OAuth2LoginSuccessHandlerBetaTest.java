@@ -47,6 +47,8 @@ class OAuth2LoginSuccessHandlerBetaTest {
     @Mock AuthCodeStore authCodeStore;
     @Mock BetaGate betaGate;
     @Mock BetaProperties betaProps;
+    @Mock ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens;
+    @Mock ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies;
 
     OAuth2LoginSuccessHandler handler;
     OAuth2AuthenticationToken authentication;
@@ -56,7 +58,7 @@ class OAuth2LoginSuccessHandlerBetaTest {
     void setUp() throws Exception {
         handler = new OAuth2LoginSuccessHandler(
                 registration, refreshStore, cookies, props, authorizedClients, authCodeStore,
-                betaGate, betaProps);
+                betaGate, betaProps, betaStatusTokens, betaStatusCookies);
 
         long uniqueId = 99001L;
         String uniqueEmail = "octo@example.com";
@@ -96,19 +98,24 @@ class OAuth2LoginSuccessHandlerBetaTest {
     }
 
     @Test
-    void unlistedUser_redirectsToPending_noRefreshCookie() throws Exception {
+    void unlistedUser_setsBetaStatusCookie_redirectsToBetaPending() throws Exception {
         when(betaGate.admit(any())).thenReturn(false);
-        when(betaProps.getPendingRedirect()).thenReturn("/login?beta=pending");
+        when(betaProps.getPendingRedirect()).thenReturn("/beta-pending");
+        when(betaStatusTokens.issue(anyLong())).thenReturn("st");
+        when(betaStatusCookies.create("st")).thenReturn(
+                ResponseCookie.from("beta_status", "st").httpOnly(true).path("/").build());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         handler.onAuthenticationSuccess(request, response, authentication);
 
-        // MockHttpServletResponse is not a Mockito mock — assert via getHeader / getRedirectedUrl
-        assertNull(response.getHeader(HttpHeaders.SET_COOKIE), "refresh 쿠키 미설정");
+        // beta_status 쿠키 발급 + /beta-pending 리다이렉트, refresh 미발급.
+        String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
+        assertNotNull(setCookie, "beta_status 쿠키 설정돼야 함");
+        org.junit.jupiter.api.Assertions.assertTrue(setCookie.contains("beta_status"), "beta_status 쿠키명");
         verifyNoInteractions(refreshStore);
-        assertEquals("https://app.example/login?beta=pending", response.getRedirectedUrl());
+        assertEquals("https://app.example/beta-pending", response.getRedirectedUrl());
     }
 
     @Test

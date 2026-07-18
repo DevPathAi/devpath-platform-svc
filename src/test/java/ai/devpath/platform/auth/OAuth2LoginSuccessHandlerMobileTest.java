@@ -67,7 +67,8 @@ class OAuth2LoginSuccessHandlerMobileTest {
 
 		handler = new OAuth2LoginSuccessHandler(
 				registration, refreshStore, new RefreshCookies(props), props, authorizedClients, authCodeStore,
-				betaGate, betaProperties);
+				betaGate, betaProperties,
+				mock(ai.devpath.platform.beta.BetaStatusTokens.class), mock(ai.devpath.platform.beta.BetaStatusCookies.class));
 	}
 
 	private OAuth2AuthenticationToken githubAuth() {

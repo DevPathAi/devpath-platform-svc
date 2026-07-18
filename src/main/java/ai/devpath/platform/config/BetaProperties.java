@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class BetaProperties {
     private List<String> adminEmails = List.of();
     private String notifyEmail;
-    private String pendingRedirect = "/login?beta=pending";
+    private String pendingRedirect = "/beta-pending";
     private Duration statusTtl = Duration.ofMinutes(30);
 
     public List<String> getAdminEmails() { return adminEmails; }
