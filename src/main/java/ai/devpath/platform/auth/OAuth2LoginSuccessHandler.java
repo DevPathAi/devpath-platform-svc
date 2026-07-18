@@ -29,11 +29,15 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 	private final AuthCodeStore authCodeStore;
 	private final BetaGate betaGate;
 	private final BetaProperties betaProps;
+	private final ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens;
+	private final ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies;
 
 	public OAuth2LoginSuccessHandler(UserRegistrationService registration, RefreshTokenStore refreshStore,
 			RefreshCookies cookies, AuthProperties props,
 			OAuth2AuthorizedClientService authorizedClients, AuthCodeStore authCodeStore,
-			BetaGate betaGate, BetaProperties betaProps) {
+			BetaGate betaGate, BetaProperties betaProps,
+			ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens,
+			ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies) {
 		this.registration = registration;
 		this.refreshStore = refreshStore;
 		this.cookies = cookies;
@@ -42,6 +46,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		this.authCodeStore = authCodeStore;
 		this.betaGate = betaGate;
 		this.betaProps = betaProps;
+		this.betaStatusTokens = betaStatusTokens;
+		this.betaStatusCookies = betaStatusCookies;
 	}
 
 	@Override
@@ -71,8 +77,11 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			return;
 		}
 
-		// 베타 게이팅: 허용 목록에 없는 사용자는 토큰·쿠키 발급 없이 대기 페이지로 리다이렉트.
+		// 베타 게이팅: 허용 목록에 없는 사용자는 실 토큰·쿠키 없이 대기 페이지로 리다이렉트하되,
+		// 승인여부 폴링을 위한 단명 조회 쿠키(beta_status)만 발급한다.
 		if (!betaGate.admit(user)) {
+			String statusToken = betaStatusTokens.issue(user.getId());
+			response.addHeader(HttpHeaders.SET_COOKIE, betaStatusCookies.create(statusToken).toString());
 			response.sendRedirect(props.getWebUrl() + betaProps.getPendingRedirect());
 			return;
 		}
