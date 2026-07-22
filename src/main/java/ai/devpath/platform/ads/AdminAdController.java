@@ -2,9 +2,11 @@ package ai.devpath.platform.ads;
 
 import ai.devpath.platform.ads.dto.AdRequest;
 import ai.devpath.platform.ads.dto.AdRow;
+import java.io.IOException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /** /admin/ads/** — SecurityConfig의 /admin/** hasRole("ADMIN")로 보호됨. */
 @RestController
@@ -12,9 +14,11 @@ import org.springframework.web.bind.annotation.*;
 public class AdminAdController {
 
   private final AdAdminService service;
+  private final AdImageService imageService;
 
-  public AdminAdController(AdAdminService service) {
+  public AdminAdController(AdAdminService service, AdImageService imageService) {
     this.service = service;
+    this.imageService = imageService;
   }
 
   @GetMapping
@@ -38,5 +42,11 @@ public class AdminAdController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void delete(@PathVariable long id) {
     service.delete(id);
+  }
+
+  @PostMapping("/{id}/image")
+  public AdRow uploadImage(@PathVariable long id,
+      @RequestParam("file") MultipartFile file) throws IOException {
+    return imageService.upload(id, file.getBytes(), file.getContentType(), file.getOriginalFilename());
   }
 }
