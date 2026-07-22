@@ -1,6 +1,7 @@
 package ai.devpath.platform.ads;
 
 import ai.devpath.platform.ads.dto.AdEventRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,6 +38,12 @@ public class AdController {
   public void event(
       @PathVariable long id,
       @RequestBody AdEventRequest body) {
-    eventService.record(id, body.type());
+    try {
+      eventService.record(id, body.type());
+    } catch (DataIntegrityViolationException race) {
+      // existsById 통과 후 upsert 직전 광고가 동시 삭제된 레이스(FK 위반).
+      // 이벤트는 유실 허용(spec)이므로 흡수하고 202를 유지한다.
+      // 트랜잭션 경계(record) 바깥에서 잡아야 rollback-only 트랩을 피한다.
+    }
   }
 }
