@@ -21,4 +21,7 @@ public interface AdDailyStatsRepository extends JpaRepository<AdDailyStats, AdDa
       + "ON CONFLICT (ad_id, stat_date) DO UPDATE SET clicks = ad_daily_stats.clicks + 1",
       nativeQuery = true)
   void upsertClick(@Param("adId") long adId, @Param("date") LocalDate date);
+
+  java.util.List<AdDailyStats> findByAdIdAndStatDateBetweenOrderByStatDate(
+      long adId, java.time.LocalDate from, java.time.LocalDate to);
 }
