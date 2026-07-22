@@ -4,6 +4,7 @@ import ai.devpath.platform.ads.dto.AdRequest;
 import ai.devpath.platform.ads.dto.AdRow;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +42,7 @@ public class AdAdminService {
 
   @Transactional(readOnly = true)
   public List<AdRow> list(String slot, String status) {
-    return repo.findAll().stream()
+    return repo.findAll(Sort.by(Sort.Direction.DESC, "id")).stream()
         .filter(a -> slot == null || a.getSlot().equals(slot))
         .filter(a -> status == null || a.getStatus().equals(status))
         .map(AdRow::of)
@@ -58,7 +59,7 @@ public class AdAdminService {
     if (req.weight() < 1) {
       throw new IllegalArgumentException("weight는 1 이상이어야 합니다");
     }
-    if (!STATUSES.contains(req.status())) {
+    if (req.status() == null || !STATUSES.contains(req.status())) {
       throw new IllegalArgumentException("유효하지 않은 status: " + req.status());
     }
     a.setTitle(req.title());

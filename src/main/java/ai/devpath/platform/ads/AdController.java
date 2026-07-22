@@ -1,5 +1,6 @@
 package ai.devpath.platform.ads;
 
+import ai.devpath.platform.ads.dto.AdEventRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,13 +32,11 @@ public class AdController {
         .orElseGet(() -> ResponseEntity.noContent().build());
   }
 
-  public record EventRequest(String type) {}
-
   @PostMapping("/ads/{id}/events")
   @ResponseStatus(HttpStatus.ACCEPTED)
   public void event(
       @PathVariable long id,
-      @RequestBody EventRequest body) {
+      @RequestBody AdEventRequest body) {
     eventService.record(id, body.type());
   }
 }

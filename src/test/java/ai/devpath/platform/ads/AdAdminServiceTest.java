@@ -42,4 +42,44 @@ class AdAdminServiceTest {
     assertThatThrownBy(() -> service.create(new AdRequest("t", null, "https://e.com", "DASHBOARD_TOP", 0, "ACTIVE", null, null)))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  // M4: update existing ad changes fields
+  @Test
+  void updateExistingAdChangesFields() {
+    AdRow created = service.create(new AdRequest("원본", null, "https://orig.com", "DASHBOARD_TOP", 1, "ACTIVE", null, null));
+    AdRow updated = service.update(created.id(), new AdRequest("수정됨", null, "https://new.com", "DASHBOARD_TOP", 3, "PAUSED", null, null));
+    assertThat(updated.title()).isEqualTo("수정됨");
+    assertThat(updated.linkUrl()).isEqualTo("https://new.com");
+    assertThat(updated.weight()).isEqualTo(3);
+    assertThat(updated.status()).isEqualTo("PAUSED");
+  }
+
+  // M4: update unknown id throws AdNotFoundException
+  @Test
+  void updateUnknownIdThrowsAdNotFoundException() {
+    assertThatThrownBy(() -> service.update(999999L, new AdRequest("t", null, "https://e.com", "DASHBOARD_TOP", 1, "ACTIVE", null, null)))
+        .isInstanceOf(AdNotFoundException.class);
+  }
+
+  // M4: delete existing then list is empty (for that slot)
+  @Test
+  void deleteExistingThenListIsEmpty() {
+    AdRow created = service.create(new AdRequest("삭제대상", null, "https://del.com", "DASHBOARD_TOP", 1, "ACTIVE", null, null));
+    service.delete(created.id());
+    assertThat(service.list(null, null)).extracting(AdRow::id).doesNotContain(created.id());
+  }
+
+  // M4: delete unknown id throws AdNotFoundException
+  @Test
+  void deleteUnknownIdThrowsAdNotFoundException() {
+    assertThatThrownBy(() -> service.delete(999999L))
+        .isInstanceOf(AdNotFoundException.class);
+  }
+
+  // M4: blank linkUrl rejected
+  @Test
+  void createRejectsBlankLinkUrl() {
+    assertThatThrownBy(() -> service.create(new AdRequest("t", null, "  ", "DASHBOARD_TOP", 1, "ACTIVE", null, null)))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 }

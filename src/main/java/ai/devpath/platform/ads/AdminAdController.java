@@ -2,8 +2,13 @@ package ai.devpath.platform.ads;
 
 import ai.devpath.platform.ads.dto.AdRequest;
 import ai.devpath.platform.ads.dto.AdRow;
+import ai.devpath.platform.ads.dto.AdSettingsView;
+import ai.devpath.platform.ads.dto.AdStatsRow;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -52,26 +57,26 @@ public class AdminAdController {
   @PostMapping("/{id}/image")
   public AdRow uploadImage(@PathVariable long id,
       @RequestParam("file") MultipartFile file) throws IOException {
-    return imageService.upload(id, file.getBytes(), file.getContentType(), file.getOriginalFilename());
+    String filename = Optional.ofNullable(file.getOriginalFilename()).orElse("image");
+    return imageService.upload(id, file.getBytes(), file.getContentType(), filename);
   }
 
   @GetMapping("/settings")
-  public ai.devpath.platform.ads.dto.AdSettingsView settings() {
-    return new ai.devpath.platform.ads.dto.AdSettingsView(settingsService.isEnabled());
+  public AdSettingsView settings() {
+    return new AdSettingsView(settingsService.isEnabled());
   }
 
   @PutMapping("/settings")
-  public ai.devpath.platform.ads.dto.AdSettingsView updateSettings(
-      @RequestBody ai.devpath.platform.ads.dto.AdSettingsView body) {
+  public AdSettingsView updateSettings(@RequestBody AdSettingsView body) {
     settingsService.setEnabled(body.enabled());
-    return new ai.devpath.platform.ads.dto.AdSettingsView(settingsService.isEnabled());
+    return new AdSettingsView(settingsService.isEnabled());
   }
 
   @GetMapping("/{id}/stats")
-  public java.util.List<ai.devpath.platform.ads.dto.AdStatsRow> stats(
+  public List<AdStatsRow> stats(
       @PathVariable long id,
-      @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate from,
-      @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
     return statsService.stats(id, from, to);
   }
 }

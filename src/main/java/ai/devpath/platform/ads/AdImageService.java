@@ -29,8 +29,9 @@ public class AdImageService {
   public AdRow upload(long id, byte[] content, String contentType, String filename) {
     Advertisement a = ads.findById(id).orElseThrow(() -> new AdNotFoundException(id));
     ObjectStorage storage = storage();
-    validator().validate(contentType, content.length);
-    String key = validator().key("ads", filename);
+    StoredFileValidator v = validator();
+    v.validate(contentType, content.length);
+    String key = v.key("ads", filename);
     StoredObject stored = storage.put(key, content, contentType);
     a.setImageUrl(stored.url());
     return AdRow.of(ads.save(a));
