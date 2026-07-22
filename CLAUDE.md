@@ -43,8 +43,11 @@
 
 | 모듈 | 역할 |
 |------|------|
-| user | 계정·OAuth2·JWT |
+| user | 계정·OAuth2(GitHub·Google)·이메일 계정통합·JWT |
 | github | GitHub 프로필/활동 수집 워커 |
+| consent | 동의 이력·14세 차단·계정 삭제/로그아웃 |
+| mypage | 프로필 조회·수정·아바타 업로드/삭제 |
+| beta | 베타 게이팅(승인 폴링·admin 승인/허용리스트) |
 
 > `notification`(FCM 디바이스 토큰, 인앱 알림) 모듈은 2026-07-01 [devpath-notification-svc](https://github.com/DevPathAi/devpath-notification-svc)로 이관되었다. 이 레포에는 더 이상 존재하지 않는다.
 
