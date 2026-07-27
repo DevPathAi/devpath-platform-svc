@@ -5,14 +5,18 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -22,6 +26,21 @@ public class SecurityConfig {
 	private final AuthProperties props;
 
 	public SecurityConfig(AuthProperties props) { this.props = props; }
+
+	/**
+	 * JWT {@code role} 클레임(예: {@code "ADMIN"}, {@code "LEARNER"})을
+	 * 단일 {@code ROLE_<role>} authority로 변환한다.
+	 * {@code role} 클레임이 없으면 빈 authority 목록을 반환한다.
+	 */
+	JwtAuthenticationConverter adminRoleConverter() {
+		JwtAuthenticationConverter conv = new JwtAuthenticationConverter();
+		conv.setJwtGrantedAuthoritiesConverter(jwt -> {
+			String role = jwt.getClaimAsString("role");
+			return role == null ? java.util.List.of()
+					: java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role));
+		});
+		return conv;
+	}
 
 	@Bean
 	public SecretKey jwtSecretKey() {
@@ -42,17 +61,33 @@ public class SecurityConfig {
 		return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
 	}
 
+	/**
+	 * 모바일 식별을 위해 기본 resolver를 래핑한다(authorize 요청의 client_type=mobile →
+	 * state 마커). {@link ai.devpath.platform.auth.OAuth2LoginSuccessHandler}가 그 마커를 읽는다.
+	 */
+	@Bean
+	public OAuth2AuthorizationRequestResolver authorizationRequestResolver(ClientRegistrationRepository repo) {
+		return new ai.devpath.platform.auth.MobileAwareAuthorizationRequestResolver(
+				new DefaultOAuth2AuthorizationRequestResolver(repo, "/oauth2/authorization"));
+	}
+
 	@Bean
 	public SecurityFilterChain securityFilterChain(
 			HttpSecurity http,
-			ai.devpath.platform.auth.OAuth2LoginSuccessHandler successHandler) throws Exception {
+			ai.devpath.platform.auth.OAuth2LoginSuccessHandler successHandler,
+			ai.devpath.platform.auth.GithubEmailOAuth2UserService githubEmailService,
+			OAuth2AuthorizationRequestResolver authorizationRequestResolver) throws Exception {
 		http
 			.csrf(csrf -> csrf.disable())
 			.authorizeHttpRequests(authorize -> authorize
-				.requestMatchers("/oauth2/**", "/login/**", "/auth/refresh", "/auth/logout", "/actuator/health").permitAll()
+				.requestMatchers("/oauth2/**", "/login/**", "/auth/refresh", "/auth/logout", "/auth/oauth/token", "/actuator/health", "/beta/status").permitAll()
+				.requestMatchers("/admin/**").hasRole("ADMIN")
 				.anyRequest().authenticated())
-			.oauth2Login(oauth -> oauth.successHandler(successHandler))
-			.oauth2ResourceServer(rs -> rs.jwt(Customizer.withDefaults()));
+			.oauth2Login(oauth -> oauth
+				.authorizationEndpoint(a -> a.authorizationRequestResolver(authorizationRequestResolver))
+				.userInfoEndpoint(u -> u.userService(githubEmailService))
+				.successHandler(successHandler))
+			.oauth2ResourceServer(rs -> rs.jwt(jwt -> jwt.jwtAuthenticationConverter(adminRoleConverter())));
 		return http.build();
 	}
 }

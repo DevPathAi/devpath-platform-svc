@@ -1,10 +1,15 @@
 package ai.devpath.platform.auth;
 
+import ai.devpath.platform.beta.BetaGate;
 import ai.devpath.platform.config.AuthProperties;
+import ai.devpath.platform.config.BetaProperties;
+import ai.devpath.platform.user.User;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
@@ -21,15 +26,28 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 	private final RefreshCookies cookies;
 	private final AuthProperties props;
 	private final OAuth2AuthorizedClientService authorizedClients;
+	private final AuthCodeStore authCodeStore;
+	private final BetaGate betaGate;
+	private final BetaProperties betaProps;
+	private final ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens;
+	private final ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies;
 
 	public OAuth2LoginSuccessHandler(UserRegistrationService registration, RefreshTokenStore refreshStore,
 			RefreshCookies cookies, AuthProperties props,
-			OAuth2AuthorizedClientService authorizedClients) {
+			OAuth2AuthorizedClientService authorizedClients, AuthCodeStore authCodeStore,
+			BetaGate betaGate, BetaProperties betaProps,
+			ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens,
+			ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies) {
 		this.registration = registration;
 		this.refreshStore = refreshStore;
 		this.cookies = cookies;
 		this.props = props;
 		this.authorizedClients = authorizedClients;
+		this.authCodeStore = authCodeStore;
+		this.betaGate = betaGate;
+		this.betaProps = betaProps;
+		this.betaStatusTokens = betaStatusTokens;
+		this.betaStatusCookies = betaStatusCookies;
 	}
 
 	@Override
@@ -39,7 +57,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		String registrationId = token.getAuthorizedClientRegistrationId();
 		String provider = registrationId.toUpperCase();
 		Map<String, Object> attrs = token.getPrincipal().getAttributes();
-		String providerUserId = String.valueOf(attrs.get("id"));
+		String providerUserId = token.getPrincipal().getName();
 		String nickname = attrs.get("name") != null
 				? String.valueOf(attrs.get("name"))
 				: String.valueOf(attrs.get("login"));
@@ -50,11 +68,52 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		String accessToken = (client != null && client.getAccessToken() != null)
 				? client.getAccessToken().getTokenValue() : null;
 
-		var user = registration.registerOrFind(
-				new UserRegistrationService.OauthUser(provider, providerUserId, email, nickname, accessToken));
+		User user;
+		try {
+			user = registration.registerOrFind(
+					new UserRegistrationService.OauthUser(provider, providerUserId, email, nickname, accessToken));
+		} catch (MissingEmailException e) {
+			response.sendRedirect(props.getWebUrl() + "/login?error=email_required");
+			return;
+		}
 
+		// 베타 게이팅: 허용 목록에 없는 사용자는 실 토큰·쿠키 없이 대기 페이지로 리다이렉트하되,
+		// 승인여부 폴링을 위한 단명 조회 쿠키(beta_status)만 발급한다.
+		if (!betaGate.admit(user)) {
+			String statusToken = betaStatusTokens.issue(user.getId());
+			response.addHeader(HttpHeaders.SET_COOKIE, betaStatusCookies.create(statusToken).toString());
+			response.sendRedirect(props.getWebUrl() + betaProps.getPendingRedirect());
+			return;
+		}
+
+		// 모바일(PKCE) 플로우는 state 마커로 식별(MobileAwareAuthorizationRequestResolver가 부여).
+		// state = "<csrf>.mobile.<code_challenge>".
+		String state = request.getParameter("state");
+		int marker = state == null ? -1 : state.indexOf(MobileAwareAuthorizationRequestResolver.MOBILE_STATE_MARKER);
+		if (marker >= 0) {
+			// 네이티브: 토큰을 URL에 싣지 않는다. 단명·1회용 code만 딥링크로 전달하고,
+			// 앱이 POST /auth/oauth/token에서 code_verifier와 함께 교환해 토큰을 받는다.
+			String challenge = state.substring(marker + MobileAwareAuthorizationRequestResolver.MOBILE_STATE_MARKER.length());
+			String code = authCodeStore.issue(user.getId(), challenge);
+			response.sendRedirect(props.getMobileRedirectUri() + "?code=" + enc(code));
+			return;
+		}
+
+		// admin 웹 콘솔: 웹과 동일하게 refresh 쿠키를 발급하되 adminUrl 콜백으로 복귀.
+		if (state != null && state.contains(MobileAwareAuthorizationRequestResolver.ADMIN_STATE_MARKER)) {
+			String refreshAdmin = refreshStore.issue(user.getId());
+			response.addHeader(HttpHeaders.SET_COOKIE, cookies.create(refreshAdmin).toString());
+			response.sendRedirect(props.getAdminUrl() + "/auth/callback");
+			return;
+		}
+
+		// 웹: refresh는 HttpOnly 쿠키, 프론트 콜백 페이지로 리다이렉트(access는 후속 /auth/refresh로 수령).
 		String refresh = refreshStore.issue(user.getId());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookies.create(refresh).toString());
 		response.sendRedirect(props.getWebUrl() + "/auth/callback");
+	}
+
+	private static String enc(String value) {
+		return URLEncoder.encode(value, StandardCharsets.UTF_8);
 	}
 }

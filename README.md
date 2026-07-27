@@ -1,14 +1,18 @@
 # devpath-platform-svc
 
-**DevPath AI** 플랫폼 서비스 — 사용자/인증, GitHub 수집, 알림을 담당합니다.
+**DevPath AI** 플랫폼 서비스 — 사용자/인증, GitHub 수집을 담당합니다.
 
 ## 담당 도메인
 
 | 모듈 | 역할 |
 |------|------|
-| user | 사용자 계정, OAuth2(GitHub) 연동, JWT |
+| user | 사용자 계정, OAuth2(**GitHub·Google**) 연동, 이메일 기준 계정 통합, JWT |
 | github | GitHub 프로필/활동 수집 워커 |
-| notification | 알림 (리텐션 루프 포함) |
+| consent | 개인정보/약관 동의 이력, 14세 차단, 계정 삭제·로그아웃 |
+| mypage | 프로필 조회·수정(bio·목표·트랙·경력), 아바타 업로드/삭제(오브젝트 스토리지) |
+| beta | 베타 게이팅 — 승인 상태 폴링(`/beta/status`), admin 승인/허용리스트 |
+
+> 알림(FCM 디바이스 토큰, 인앱 알림) 모듈은 2026-07-01 [devpath-notification-svc](https://github.com/DevPathAi/devpath-notification-svc)로 이관되었습니다.
 
 ## 구성
 

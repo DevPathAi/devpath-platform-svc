@@ -1,6 +1,7 @@
 package ai.devpath.platform.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.devpath.platform.auth.UserRegistrationService.OauthUser;
@@ -45,5 +46,29 @@ class UserRegistrationServiceTest {
 
 		assertEquals(first.getId(), second.getId());
 		assertEquals(outboxAfterFirst, outbox.count(), "기존 사용자는 이벤트 미발생");
+	}
+
+	@Test
+	void emailMergeLinksIdentityToExistingUser() {
+		long n = System.nanoTime();
+		String email = "merge-" + n + "@example.com";
+		User first = service.registerOrFind(
+				new OauthUser("GITHUB", "gh-" + n, email, "지수", "t1"));
+		long outboxAfterFirst = outbox.count();
+
+		User second = service.registerOrFind(
+				new OauthUser("GOOGLE", "goog-" + n, email, "Jisoo", "t2"));
+
+		assertEquals(first.getId(), second.getId(), "같은 이메일은 동일 계정");
+		assertEquals(outboxAfterFirst, outbox.count(), "통합(기존 계정)은 가입 이벤트 미발생");
+		assertTrue(identities.findByProviderAndProviderUserId("GOOGLE", "goog-" + n).isPresent(),
+				"Google identity가 기존 User에 연결");
+	}
+
+	@Test
+	void missingEmailIsRejected() {
+		long n = System.nanoTime();
+		assertThrows(MissingEmailException.class, () -> service.registerOrFind(
+				new OauthUser("GITHUB", "gh-" + n, null, "지수", "t")));
 	}
 }

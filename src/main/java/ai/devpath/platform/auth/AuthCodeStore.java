@@ -1,0 +1,74 @@
+package ai.devpath.platform.auth;
+
+import ai.devpath.platform.config.AuthProperties;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.Optional;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
+
+/**
+ * OAuth 일회용 인가 코드 저장소(Redis) — 모바일 PKCE 플로우 전용.
+ *
+ * <p>OAuth 성공 시 토큰 대신 단명(기본 60s)·1회용 code를 발급하고, code와 함께
+ * {@code code_challenge}를 보관한다. 앱이 {@code POST /auth/oauth/token}으로 code +
+ * code_verifier를 제출하면 {@link #consume}이 code를 즉시 삭제(1회성)하고 challenge를 돌려준다.
+ * code는 평문 저장하지 않고 SHA-256 해시를 키로 쓴다({@link RefreshTokenStore}와 동일).
+ */
+@Component
+public class AuthCodeStore {
+
+	public record Consumed(long userId, String codeChallenge) {}
+
+	private static final String PREFIX = "authcode:";
+	// userId와 challenge 구분자. NUL(U+0000)은 숫자·base64url challenge에 없어 모호함이 없다.
+	// 명시적 '\u0000' 표기로 보이지 않는 제어문자 리터럴 footgun을 제거(편집기 strip에도 안전).
+	// 값 형식을 테스트가 직접 참조하므로 package-private.
+	static final char SEP = '\u0000';
+	private static final SecureRandom RANDOM = new SecureRandom();
+
+	private final StringRedisTemplate redis;
+	private final AuthProperties props;
+
+	public AuthCodeStore(StringRedisTemplate redis, AuthProperties props) {
+		this.redis = redis;
+		this.props = props;
+	}
+
+	/** 1회용 code 발급. 값에 userId와 code_challenge를 함께 보관. */
+	public String issue(long userId, String codeChallenge) {
+		byte[] raw = new byte[32];
+		RANDOM.nextBytes(raw);
+		String code = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+		String value = userId + String.valueOf(SEP) + (codeChallenge == null ? "" : codeChallenge);
+		redis.opsForValue().set(PREFIX + hash(code), value, props.getAuthCodeTtl());
+		return code;
+	}
+
+	/** code를 검증·소비(1회성: GETDEL로 원자적 삭제). 없거나 만료면 empty. */
+	public Optional<Consumed> consume(String code) {
+		if (code == null || code.isBlank()) return Optional.empty();
+		String value = redis.opsForValue().getAndDelete(PREFIX + hash(code));
+		if (value == null) return Optional.empty();
+		int sep = value.indexOf(SEP);
+		if (sep < 0) return Optional.empty();
+		try {
+			long userId = Long.parseLong(value.substring(0, sep));
+			return Optional.of(new Consumed(userId, value.substring(sep + 1)));
+		} catch (NumberFormatException e) {
+			// 손상/외부 주입 값은 깨끗한 미인증(empty→401)으로 처리(500 방지).
+			return Optional.empty();
+		}
+	}
+
+	private static String hash(String token) {
+		try {
+			byte[] d = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(d);
+		} catch (Exception e) {
+			throw new IllegalStateException(e);
+		}
+	}
+}

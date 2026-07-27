@@ -1,9 +1,8 @@
 package ai.devpath.platform;
 
-import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import ai.devpath.platform.notification.NotificationRepository;
 import ai.devpath.platform.outbox.OutboxEntry;
 import ai.devpath.platform.outbox.OutboxRepository;
 import ai.devpath.platform.outbox.OutboxRelay;
@@ -11,7 +10,6 @@ import ai.devpath.platform.user.User;
 import ai.devpath.platform.user.UserRepository;
 import ai.devpath.shared.event.UserRegisteredEvent;
 import tools.jackson.databind.json.JsonMapper;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -21,11 +19,15 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 끝단간 통합 테스트: outbox 1행 → relayOnce() → Kafka → WelcomeNotificationConsumer → notifications WELCOME 1행.
+ * 통합 테스트: outbox 1행 → relayOnce() → Kafka 발행까지 검증한다(발행측만).
  *
- * EmbeddedKafka가 실제 브로커 역할을 하며 bootstrapServersProperty로 spring.kafka.bootstrap-servers를 오버라이드한다.
- * WelcomeNotificationConsumer의 @KafkaListener도 동일 브로커를 구독한다.
- * Kafka 소비가 비동기이므로 Awaitility로 최대 10초 폴링해 notifications 행 생성을 대기한다.
+ * 이전에는 WelcomeNotificationConsumer까지 끝단간으로 검증했으나, 해당 컨슈머는
+ * devpath-notification-svc로 이관되었다(2026-07-01). 소비측 커버리지는 그 레포의
+ * WelcomeNotificationConsumerIT가 담당한다 — 이 테스트는 발행측(outbox→Kafka)만 책임진다.
+ *
+ * EmbeddedKafka가 실제 브로커 역할을 하며 bootstrapServersProperty로
+ * spring.kafka.bootstrap-servers를 오버라이드한다. relay가 실제로 이 브로커에
+ * publish하므로 브로커 자체는 여전히 필요하다.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -39,11 +41,10 @@ class EventPropagationIT {
     @Autowired UserRepository users;
     @Autowired OutboxRepository outbox;
     @Autowired OutboxRelay relay;
-    @Autowired NotificationRepository notifications;
     @Autowired JsonMapper jsonMapper;
 
     @Test
-    void outboxToKafkaToWelcomeNotification_endToEnd() throws Exception {
+    void outboxRelay_publishesUserRegisteredEvent() throws Exception {
         // 1. FK 만족용 실제 user 저장
         User user = new User();
         user.setEmail("it-" + System.nanoTime() + "@example.com");
@@ -71,16 +72,8 @@ class EventPropagationIT {
         int published = relay.relayOnce();
         assertEquals(1, published, "relay는 1행을 발행해야 한다");
 
-        // 4. WelcomeNotificationConsumer가 비동기로 notifications에 WELCOME 행을 저장할 때까지 대기 (최대 10초)
-        await()
-                .atMost(Duration.ofSeconds(10))
-                .pollInterval(Duration.ofMillis(200))
-                .untilAsserted(() -> {
-                    long count = notifications.findAll().stream()
-                            .filter(n -> n.getUserId().equals(userId) && "WELCOME".equals(n.getType()))
-                            .count();
-                    assertEquals(1L, count,
-                            "notifications 테이블에 userId=" + userId + " WELCOME 행이 정확히 1개여야 한다");
-                });
+        // 4. 발행 성공 여부는 outbox 행의 published_at으로 검증(소비측은 더 이상 이 레포 책임 아님)
+        OutboxEntry saved = outbox.findById(entry.getId()).orElseThrow();
+        assertNotNull(saved.getPublishedAt(), "발행 성공 시 published_at이 채워져야 한다");
     }
 }

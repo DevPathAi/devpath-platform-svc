@@ -36,6 +36,9 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("com.google.crypto.tink:tink:1.18.0")
 	implementation("ai.devpath:devpath-shared:0.0.1-SNAPSHOT")
+	// P2 avatar: shared storage는 s3를 compileOnly로 제공 → 소비 svc가 런타임 s3 제공(MinIO 호환)
+	runtimeOnly(platform("software.amazon.awssdk:bom:2.28.0"))
+	runtimeOnly("software.amazon.awssdk:s3")
 	runtimeOnly("org.postgresql:postgresql")
 	compileOnly("org.projectlombok:lombok")
 	annotationProcessor("org.projectlombok:lombok")
@@ -53,6 +56,8 @@ dependencies {
 	testImplementation("org.flywaydb:flyway-database-postgresql")
 	testCompileOnly("org.projectlombok:lombok")
 	testImplementation("org.awaitility:awaitility")
+	testImplementation("no.nav.security:mock-oauth2-server:2.1.10")
+	testImplementation("org.springframework.boot:spring-boot-restclient")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testAnnotationProcessor("org.projectlombok:lombok")
 }
