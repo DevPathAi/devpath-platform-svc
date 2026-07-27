@@ -9,6 +9,7 @@ public class AuthProperties {
 	private Duration accessTtl = Duration.ofMinutes(15);
 	private Duration refreshTtl = Duration.ofDays(14);
 	private Duration authCodeTtl = Duration.ofSeconds(60);
+	private Duration refreshRotateGrace = Duration.ofSeconds(30);
 	private String webUrl;
 	private String adminUrl;
 	private String mobileRedirectUri = "devpath://callback";
@@ -24,6 +25,8 @@ public class AuthProperties {
 	public void setRefreshTtl(Duration v) { this.refreshTtl = v; }
 	public Duration getAuthCodeTtl() { return authCodeTtl; }
 	public void setAuthCodeTtl(Duration v) { this.authCodeTtl = v; }
+	public Duration getRefreshRotateGrace() { return refreshRotateGrace; }
+	public void setRefreshRotateGrace(Duration v) { this.refreshRotateGrace = v; }
 	public String getWebUrl() { return webUrl; }
 	public void setWebUrl(String v) { this.webUrl = v; }
 	public String getAdminUrl() { return adminUrl; }
