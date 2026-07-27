@@ -2,6 +2,7 @@ package ai.devpath.platform.auth.refresh;
 
 import ai.devpath.platform.config.AuthProperties;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -17,6 +18,7 @@ public class RefreshTokenStore {
 
 	private static final String PREFIX = "refresh:";
 	private static final String BY_USER_PREFIX = "refresh:byUser:";
+	private static final String GRACE_PREFIX = "grace:";
 	private static final SecureRandom RANDOM = new SecureRandom();
 
 	private final StringRedisTemplate redis;
@@ -43,15 +45,34 @@ public class RefreshTokenStore {
 	public Optional<Long> validate(String token) {
 		if (token == null || token.isBlank()) return Optional.empty();
 		String v = redis.opsForValue().get(PREFIX + hash(token));
-		return v == null ? Optional.empty() : Optional.of(Long.parseLong(v));
+		return v == null ? Optional.empty() : Optional.of(parseUserId(v));
 	}
 
+	/**
+	 * 회전: 현행 토큰은 삭제 대신 짧은 유예 마커(grace:<userId>)로 교체해, 이미 전송 중인
+	 * 동시 refresh(콜백 이중 부트스트랩·멀티탭)가 401로 세션을 파괴하지 않게 한다.
+	 * 유예 토큰 재사용도 새 토큰을 발급하되 마커 TTL은 연장하지 않는다. grace<=0이면 기존 단일-사용.
+	 */
 	public Optional<Rotated> rotate(String oldToken) {
-		Optional<Long> userId = validate(oldToken);
-		if (userId.isEmpty()) return Optional.empty();
-		redis.delete(PREFIX + hash(oldToken));
-		String next = issue(userId.get());
-		return Optional.of(new Rotated(userId.get(), next));
+		if (oldToken == null || oldToken.isBlank()) return Optional.empty();
+		String key = PREFIX + hash(oldToken);
+		String value = redis.opsForValue().get(key);
+		if (value == null) return Optional.empty();
+		long userId = parseUserId(value);
+		if (!value.startsWith(GRACE_PREFIX)) {
+			Duration grace = props.getRefreshRotateGrace();
+			if (grace == null || grace.isZero() || grace.isNegative()) {
+				redis.delete(key);
+			} else {
+				redis.opsForValue().set(key, GRACE_PREFIX + userId, grace);
+			}
+		}
+		return Optional.of(new Rotated(userId, issue(userId)));
+	}
+
+	private static long parseUserId(String value) {
+		return Long.parseLong(
+				value.startsWith(GRACE_PREFIX) ? value.substring(GRACE_PREFIX.length()) : value);
 	}
 
 	public void revoke(String token) {

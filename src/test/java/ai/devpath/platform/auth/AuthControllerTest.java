@@ -39,9 +39,12 @@ class AuthControllerTest {
 				.andExpect(jsonPath("$.user.email").value(u.getEmail()))
 				.andExpect(header().exists("Set-Cookie"));
 
-		// I-1: 첫 호출 성공(200) 후 — 동일 이전 토큰 재사용은 회전으로 무효 → 401
+		// 회전 유예창: 직전 토큰 재사용(동시 refresh·멀티탭·콜백 이중 부트스트랩)은
+		// 유예창(기본 30s) 내 200 — 각자 새 access와 새 refresh 쿠키를 받는다.
 		mvc.perform(post("/auth/refresh").cookie(new Cookie("refresh_token", refresh)))
-				.andExpect(status().isUnauthorized());
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.access_token").isNotEmpty())
+				.andExpect(header().exists("Set-Cookie"));
 	}
 
 	@Test
