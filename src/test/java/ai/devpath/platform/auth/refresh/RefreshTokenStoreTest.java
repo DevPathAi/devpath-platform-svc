@@ -99,4 +99,10 @@ class RefreshTokenStoreTest {
 		Thread.sleep(250);
 		assertFalse(s.rotate(t).isPresent(), "유예 재사용이 TTL을 연장하면 안 됨");
 	}
+
+	@Test
+	void reuseDetectionEnabledByDefault() {
+		assertTrue(new AuthProperties().isRefreshReuseDetection(),
+				"보안 기본값: 재사용 감지는 기본 활성(enforce)");
+	}
 }
