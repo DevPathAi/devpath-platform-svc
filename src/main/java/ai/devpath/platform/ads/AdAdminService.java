@@ -40,6 +40,16 @@ public class AdAdminService {
     repo.deleteById(id); // ad_daily_stats는 FK ON DELETE CASCADE
   }
 
+  /** 여러 광고 일괄 삭제. 존재하는 id만 삭제(없는 id 무시). ad_daily_stats는 FK CASCADE. */
+  @Transactional
+  public void bulkDelete(List<Long> ids) {
+    for (Long id : ids) {
+      if (id != null && repo.existsById(id)) {
+        repo.deleteById(id);
+      }
+    }
+  }
+
   @Transactional(readOnly = true)
   public List<AdRow> list(String slot, String status) {
     return repo.findAll(Sort.by(Sort.Direction.DESC, "id")).stream()
