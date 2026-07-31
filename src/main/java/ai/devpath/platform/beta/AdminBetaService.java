@@ -6,6 +6,7 @@ import ai.devpath.platform.user.User;
 import ai.devpath.platform.user.UserRepository;
 import ai.devpath.shared.event.BetaAccessApprovedEvent;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +51,16 @@ public class AdminBetaService {
         user.setStatus(BetaGate.ACTIVE);
         users.save(user);
         writeApprovedOutbox(user, email);
+    }
+
+    /** 여러 사용자를 일괄 승인. 존재하는 id만 처리(approveUser는 멱등). */
+    @Transactional
+    public void bulkApprove(List<Long> ids) {
+        for (Long id : ids) {
+            if (id != null && users.existsById(id)) {
+                approveUser(id);
+            }
+        }
     }
 
     /**

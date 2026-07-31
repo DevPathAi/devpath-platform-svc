@@ -159,4 +159,35 @@ class AdminUserControllerTest {
                         .content("{\"email\":\"x@y.com\"}"))
                 .andExpect(status().isForbidden());
     }
+
+    // ---------------------------------------------------------------
+    // POST /admin/users/bulk-approve — 일괄 승인
+    // ---------------------------------------------------------------
+
+    @Test
+    void bulkApprove_adminJwt_returns204() throws Exception {
+        User u1 = createBetaPendingUser("bulk-a-");
+        User u2 = createBetaPendingUser("bulk-b-");
+
+        mvc.perform(post("/admin/users/bulk-approve")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[" + u1.getId() + "," + u2.getId() + "]}"))
+                .andExpect(status().isNoContent());
+
+        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE",
+                userRepository.findById(u1.getId()).orElseThrow().getStatus());
+        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE",
+                userRepository.findById(u2.getId()).orElseThrow().getStatus());
+    }
+
+    @Test
+    void bulkApprove_learnerJwt_returns403() throws Exception {
+        User u = createBetaPendingUser("bulk-learner-");
+        mvc.perform(post("/admin/users/bulk-approve")
+                        .header("Authorization", "Bearer " + learnerToken(u.getId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[" + u.getId() + "]}"))
+                .andExpect(status().isForbidden());
+    }
 }
