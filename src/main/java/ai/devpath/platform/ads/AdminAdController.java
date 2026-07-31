@@ -7,6 +7,7 @@ import ai.devpath.platform.ads.dto.AdStatsRow;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -52,6 +53,12 @@ public class AdminAdController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void delete(@PathVariable long id) {
     service.delete(id);
+  }
+
+  @PostMapping("/bulk-delete")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void bulkDelete(@RequestBody Map<String, List<Long>> body) {
+    service.bulkDelete(body.getOrDefault("ids", List.of()));
   }
 
   @PostMapping("/{id}/image")
