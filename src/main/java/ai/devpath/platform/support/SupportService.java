@@ -1,9 +1,16 @@
 package ai.devpath.platform.support;
 
+import ai.devpath.platform.support.dto.AdminSupportDetail;
+import ai.devpath.platform.support.dto.AdminSupportPage;
+import ai.devpath.platform.support.dto.AdminSupportRow;
 import ai.devpath.platform.support.dto.SupportCreateRequest;
+import ai.devpath.platform.support.dto.SupportFailureView;
+import ai.devpath.shared.error.ApiException;
+import ai.devpath.shared.error.ErrorCode;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -106,6 +113,97 @@ public class SupportService {
       return null;
     }
     return s.length() <= max ? s : s.substring(0, max);
+  }
+
+  private static final int LIMIT_MAX = 100;
+  private static final List<String> STATUSES =
+      List.of("OPEN", "IN_PROGRESS", "RESOLVED", "WONTFIX");
+
+  /**
+   * keyset 목록 — id 내림차순(최신순). cursor 가 없으면 처음부터, 있으면 id &lt; cursor 만.
+   * nextCursor 는 <b>꽉 찬 페이지일 때만</b> 마지막 행 id, 아니면 null.
+   */
+  @Transactional(readOnly = true)
+  public AdminSupportPage list(String status, String type, String cursor, int limit) {
+    int size = Math.min(Math.max(limit, 1), LIMIT_MAX);
+    long before = (cursor == null || cursor.isBlank()) ? Long.MAX_VALUE : Long.parseLong(cursor);
+    var pageable = PageRequest.of(0, size);
+
+    boolean hasStatus = status != null && !status.isBlank();
+    boolean hasType = type != null && !type.isBlank();
+    List<SupportRequest> rows;
+    if (hasStatus && hasType) {
+      rows = requests.findByStatusAndTypeAndIdLessThanOrderByIdDesc(status, type, before, pageable);
+    } else if (hasStatus) {
+      rows = requests.findByStatusAndIdLessThanOrderByIdDesc(status, before, pageable);
+    } else if (hasType) {
+      rows = requests.findByTypeAndIdLessThanOrderByIdDesc(type, before, pageable);
+    } else {
+      rows = requests.findByIdLessThanOrderByIdDesc(before, pageable);
+    }
+
+    String nextCursor = (rows.size() == size)
+        ? String.valueOf(rows.get(rows.size() - 1).getId())
+        : null;
+
+    List<AdminSupportRow> data = rows.stream()
+        .map(r -> new AdminSupportRow(
+            r.getId(), r.getType(), r.getTitle(), r.getStatus(), r.getPagePath(),
+            r.getReporterId(), failures.countByRequestId(r.getId()), iso(r.getCreatedAt())))
+        .toList();
+    return new AdminSupportPage(data, nextCursor, size);
+  }
+
+  @Transactional(readOnly = true)
+  public AdminSupportDetail detail(long id) {
+    return toDetail(find(id));
+  }
+
+  /**
+   * 상태 전이. handled_by = 관리자 id, handled_at = now.
+   * OPEN 으로 되돌리면 둘 다 NULL 로 초기화한다(처리 이력이 없는 상태로 복귀).
+   */
+  @Transactional
+  public AdminSupportDetail updateStatus(long id, long adminId, String status, String adminNote) {
+    if (status == null || !STATUSES.contains(status)) {
+      throw new IllegalArgumentException("status must be one of " + STATUSES);
+    }
+    SupportRequest r = find(id);
+    r.setStatus(status);
+    if (adminNote != null) {
+      r.setAdminNote(adminNote);
+    }
+    if ("OPEN".equals(status)) {
+      r.setHandledBy(null);
+      r.setHandledAt(null);
+    } else {
+      r.setHandledBy(adminId);
+      r.setHandledAt(Instant.now());
+    }
+    requests.save(r);
+    return toDetail(r);
+  }
+
+  private SupportRequest find(long id) {
+    return requests.findById(id).orElseThrow(() ->
+        new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "support request not found: " + id));
+  }
+
+  private AdminSupportDetail toDetail(SupportRequest r) {
+    List<SupportFailureView> rows = failures.findByRequestIdOrderBySeqAsc(r.getId()).stream()
+        .map(f -> new SupportFailureView(f.getSeq(), f.getMethod(), f.getPath(), f.getStatusCode(),
+            f.getErrorCode(), f.getTraceId(), f.getMessage(), iso(f.getOccurredAt())))
+        .toList();
+    return new AdminSupportDetail(
+        r.getId(), r.getType(), r.getTitle(), r.getBody(), r.getStatus(), r.getPagePath(),
+        r.getAppVersion(), r.getUserAgent(), r.getViewport(), r.getTraceId(), r.getErrorCode(),
+        iso(r.getOccurredAt()), r.getReporterId(), r.getAdminNote(), r.getHandledBy(),
+        iso(r.getHandledAt()), iso(r.getCreatedAt()), rows);
+  }
+
+  /** 날짜는 String ISO-8601 로 내보낸다(요청 계약과 대칭). */
+  private static String iso(Instant at) {
+    return at == null ? null : at.toString();
   }
 
   /** 파싱 실패는 null 로 흡수한다 — 부가 정보의 형식 문제로 제보를 잃지 않는다. */
