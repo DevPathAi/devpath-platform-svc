@@ -86,11 +86,15 @@ CREATE TRIGGER ad_slot_config_set_updated_at BEFORE UPDATE ON ad_slot_config
 
 ### 2.4 `ads.txt`
 
-`apps/web/web/ads.txt`에 다음 한 줄을 둔다. Flutter 빌드가 산출물 루트로 복사하므로 홈페이지 레포는 건드리지 않는다.
+다음 한 줄을 둔다.
 
 ```
 google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
 ```
+
+> **2026-08-10 정정.** 초안은 "Flutter 빌드가 산출물 루트로 복사하므로 홈페이지 레포는 건드리지 않는다"고 썼으나 **틀렸다.** gitops ingress 실측상 웹앱은 `app.leva.ai.kr`이고 루트 `leva.ai.kr`은 별도 레포 `devpath-home-page`(CF Pages)다. `ads.txt`는 페이지 호스트의 **루트 도메인**에서 조회되는 것이 표준이므로 서브도메인에만 두면 찾지 못한다.
+>
+> 따라서 **양쪽에 둔다**: `apps/web/web/ads.txt`(앱) + `devpath-home-page/ads.txt`(루트). 후자는 `build.mjs`의 `DEPLOY_ENTRIES` 화이트리스트에 `'ads.txt'`를 추가해야 실제로 배포된다.
 
 ---
 
@@ -176,14 +180,19 @@ window.createDevpathAdUnit = function (container, slotId, onResolved) { … }
 
 `HtmlElementView`는 부모가 준 제약을 채울 뿐이라 Flutter는 광고 높이를 모른다.
 
-**높이 0으로 시작한다.** 심은 `<ins>`에 `MutationObserver`를 걸어 `data-ad-status` 속성 변화를 관측하고(폴링 아님), 관측 즉시 `onResolved(status, height)`를 1회 호출한 뒤 observer를 해제한다. 3초 안에 변화가 없으면 타임아웃으로 `onResolved('unfilled', 0)`을 호출한다.
+**높이 0으로 시작한다.** 심은 `<ins>`에 `MutationObserver`를 걸어 `data-ad-status` 속성 변화를 관측하고(폴링 아님), 관측 즉시 `onResolved(status, height)`를 1회 호출한 뒤 observer를 해제한다. 8초 안에 변화가 없으면 타임아웃으로 `onResolved('unfilled', 0)`을 호출한다.
+
+> **2026-08-10 정정 — 두 가지를 고쳤다.**
+>
+> 1. **`push({})`는 컨테이너가 폭을 가진 뒤에 호출한다.** 초안은 `registerViewFactory` 콜백 안에서 즉시 push했는데, 그 시점 div는 아직 레이아웃 전이라 폭이 0이고 애드센스는 `availableWidth=0`으로 거부한다. `requestAnimationFrame`으로 `container.offsetWidth > 0`이 될 때까지 기다린 뒤 push한다. (Monaco 선례는 이 문제를 검증해 주지 않는다 — Monaco는 컨테이너 크기를 요구하지 않고, 그래서 `height:100%`를 주고 있다. 「DOM 삽입이 가능하다」와 「애드센스가 그 안에서 채워진다」는 다른 주장이다.)
+> 2. **`window.adsbygoogle` 부재를 즉시 `unfilled`로 처리하지 않는다.** 애드센스 스크립트는 `async`라 로드 전에 배열이 없는 것이 정상이고, 표준 관용구 `(window.adsbygoogle = window.adsbygoogle || []).push({})`가 바로 그 대기 큐를 만들기 위한 것이다. 초안의 가드는 스크립트가 아직 안 온 정상 상태를 접어버리는 레이스였다. 애드블록·차단·무응답은 전부 **타임아웃 하나로** 흡수한다(그래서 3초 → 8초).
 
 | 심이 관측한 것 | 위젯 동작 |
 |---|---|
 | `filled` | 실제 높이로 `SizedBox(height:)` 확장 |
 | `unfilled` | 접는다 (`SizedBox.shrink()`) |
-| `window.adsbygoogle` 부재 (애드블록·스크립트 차단) | 접는다 |
-| 3초 타임아웃 | 접는다 |
+| 애드블록·스크립트 차단 (응답 자체가 없음) | 타임아웃으로 접는다 |
+| 8초 타임아웃 | 접는다 |
 
 고정 높이 대신 이 방식을 택한 이유: 고정 높이는 심사 대기·애드블록 상태에서 **빈 상자를 남겨** 「빈 자리는 접는다」 결정과 정면 충돌한다.
 대가는 심 로직 증가와, 광고가 채워질 때 레이아웃이 한 번 밀리는 것이다.

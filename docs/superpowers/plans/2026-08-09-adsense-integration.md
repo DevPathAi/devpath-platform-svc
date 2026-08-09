@@ -20,6 +20,13 @@
 - **모든 레포가 Test-First다.** 실패하는 테스트를 먼저 쓰고, 실패를 눈으로 확인한 뒤 최소 구현을 한다.
 - **모든 작업은 `develop`에서 분기한 새 브랜치에서 한다.** `main`·`develop`에 직접 push 금지.
 - **`git` 명령에는 항상 `-C <레포 절대경로>`를 쓴다.** `cd` 후 상대경로 금지.
+- **배포 순서: 백엔드(platform-svc) → 프론트(web).** `GET /ads` 응답이 `{id,…}`에서 `{type,ad}` 봉투로 바뀌므로 한쪽만 배포된 구간에서는 광고가 조용히 사라진다(양방향 모두 fail-silent라 크래시는 없다). 지금은 AWS 정지로 즉시 영향이 없지만 재가동 시 이 순서를 지킨다.
+
+### 착수 시 사용자가 인지하고 수용한 위험 (2026-08-10)
+
+착수 전 검토에서 아래를 보고했고, 사용자가 진행을 지시했다. **구현 결함이 아니라 사업 판단 사항**이므로 이 계획은 그대로 진행하되 기대치를 여기 명시해 둔다.
+
+- **애드센스 크롤러가 광고 게재 화면에 도달할 수 없다.** 슬롯 3곳(`dashboard_body.dart:44` · `community_home_page.dart:336` · `content_page.dart:342`)은 전부 `router.dart:84`의 `gateRedirect` 뒤, 즉 로그인 + 베타 허용리스트 통과 후 화면이다. 게다가 CanvasKit은 텍스트를 캔버스에 그려 크롤러가 읽을 콘텐츠가 사실상 없다. → **코드가 완벽해도 심사가 통과되지 않으면 광고는 나오지 않는다.** 심사 대응(공개 랜딩 콘텐츠 확보 등)은 이 계획의 범위 밖이며 별건으로 다룬다.
 
 ## 레포별 브랜치와 PR
 
@@ -233,6 +240,7 @@ package ai.devpath.platform.ads;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -244,23 +252,34 @@ class AdSlotConfigServiceTest {
 
   @Autowired AdSlotConfigService service;
 
+  /**
+   * 이 테스트 DB는 여러 테스트 클래스가 공유한다. 각 테스트가 슬롯 설정을 바꾸므로
+   * 매번 시드 상태로 되돌려 놓아야 실행 순서에 상관없이 결정적으로 통과한다.
+   * (learning-svc에서 공유 DB 오염으로 인접 테스트가 깨진 전례가 있다.)
+   */
+  @AfterEach
+  void restoreSeed() {
+    for (String slot : new String[] {"DASHBOARD_TOP", "COMMUNITY_FEED", "CONTENT_PAGE"}) {
+      service.update(slot, "HOUSE", null);
+    }
+  }
+
   @Test
-  void seedIsThreeHouseRows() {
+  void listReturnsThreeSlotsInAscendingOrder() {
     var rows = service.list();
     assertThat(rows).hasSize(3);
-    assertThat(rows).allSatisfy(r -> assertThat(r.getSource()).isEqualTo("HOUSE"));
-    assertThat(rows).allSatisfy(r -> assertThat(r.getAdsenseSlotId()).isNull());
+    assertThat(rows.stream().map(AdSlotConfig::getSlot))
+        .containsExactly("COMMUNITY_FEED", "CONTENT_PAGE", "DASHBOARD_TOP");
   }
 
   @Test
   void updateStoresSourceAndNormalizesBlankSlotIdToNull() {
     service.update("DASHBOARD_TOP", "ADSENSE", "  1234567890  ");
+    assertThat(service.get("DASHBOARD_TOP").getSource()).isEqualTo("ADSENSE");
     assertThat(service.get("DASHBOARD_TOP").getAdsenseSlotId()).isEqualTo("1234567890");
 
     service.update("DASHBOARD_TOP", "ADSENSE", "   ");
     assertThat(service.get("DASHBOARD_TOP").getAdsenseSlotId()).isNull();
-
-    service.update("DASHBOARD_TOP", "HOUSE", null); // 원복(다른 테스트 오염 방지)
   }
 
   @Test
@@ -897,9 +916,12 @@ class AdSlotConfigApiTest {
     return jwt.mintAccessToken(u.getId(), "ADMIN");
   }
 
+  /** 공유 테스트 DB이므로 세 행 전부를 시드 상태로 되돌린다(실행 순서 독립). */
   @AfterEach
   void restoreSeed() {
-    service.update("DASHBOARD_TOP", "HOUSE", null);
+    for (String slot : new String[] {"DASHBOARD_TOP", "COMMUNITY_FEED", "CONTENT_PAGE"}) {
+      service.update(slot, "HOUSE", null);
+    }
   }
 
   @Test
@@ -1458,6 +1480,8 @@ git -C /d/workspace/dpa/devpath-frontend commit -m "feat(ads): 애드센스 광�
 **Files:**
 - Modify: `apps/web/web/index.html`
 - Create: `apps/web/web/ads.txt`
+- Create: `devpath-home-page/ads.txt` (루트 도메인 `leva.ai.kr`용 — Step 3 참조)
+- Modify: `devpath-home-page/build.mjs` — `DEPLOY_ENTRIES`에 `'ads.txt'` 추가
 
 **Interfaces:**
 - Consumes: Task 7의 `_createDevpathAdUnit(container, slotId, onResolved)` 호출 규약
@@ -1487,12 +1511,14 @@ git -C /d/workspace/dpa/devpath-frontend commit -m "feat(ads): 애드센스 광�
       var settled = false;
       var observer = null;
       var timer = null;
+      var rafId = null;
 
       function settle(status, height) {
         if (settled) return;
         settled = true;
         if (observer) { observer.disconnect(); observer = null; }
         if (timer) { clearTimeout(timer); timer = null; }
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         onResolved(status, height);
       }
 
@@ -1506,12 +1532,6 @@ git -C /d/workspace/dpa/devpath-frontend commit -m "feat(ads): 애드센스 광�
       ins.setAttribute('data-full-width-responsive', 'true');
       container.appendChild(ins);
 
-      // 애드블록·스크립트 차단: adsbygoogle 자체가 없으면 즉시 접는다.
-      if (!window.adsbygoogle) {
-        settle('unfilled', 0);
-        return { dispose: function () {} };
-      }
-
       // 채워짐 여부는 구글이 data-ad-status로 알려준다. 폴링이 아니라 관측한다.
       observer = new MutationObserver(function () {
         var status = ins.getAttribute('data-ad-status');
@@ -1523,31 +1543,59 @@ git -C /d/workspace/dpa/devpath-frontend commit -m "feat(ads): 애드센스 광�
       });
       observer.observe(ins, { attributes: true, attributeFilter: ['data-ad-status'] });
 
-      // 응답이 아예 없는 경우(네트워크 지연·차단)도 접는다.
-      timer = setTimeout(function () { settle('unfilled', 0); }, 3000);
+      // 스크립트 미로드·애드블록·응답 없음을 모두 흡수하는 단일 마감선.
+      // adsbygoogle 배열이 없다고 즉시 접으면 안 된다 — 스크립트가 async라
+      // 로드 전에는 없는 것이 정상이고, `|| []` 큐가 바로 그 대기용이다.
+      timer = setTimeout(function () { settle('unfilled', 0); }, 8000);
 
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch (e) {
-        settle('unfilled', 0);
+      // 폭 0인 채로 push하면 "No slot size for availableWidth=0"으로 거부된다.
+      // 컨테이너가 실제로 레이아웃돼 폭을 가질 때까지 프레임을 기다린 뒤 push한다.
+      function pushWhenMeasurable() {
+        if (settled) return;
+        if (container.offsetWidth > 0) {
+          try {
+            (window.adsbygoogle = window.adsbygoogle || []).push({});
+          } catch (e) {
+            settle('unfilled', 0);
+          }
+          return;
+        }
+        rafId = requestAnimationFrame(pushWhenMeasurable);
       }
+      rafId = requestAnimationFrame(pushWhenMeasurable);
 
       return {
         dispose: function () {
           if (observer) { observer.disconnect(); observer = null; }
           if (timer) { clearTimeout(timer); timer = null; }
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+          if (ins.parentNode) { ins.parentNode.removeChild(ins); }
         },
       };
     };
 ```
 
-- [ ] **Step 3: `ads.txt` 생성**
+- [ ] **Step 3: `ads.txt` 생성 — 앱 서브도메인과 루트 도메인 양쪽**
 
-`apps/web/web/ads.txt` — Flutter 빌드가 `web/` 내용을 산출물 루트로 복사하므로 배포하면 `/(도메인)/ads.txt`로 서빙된다.
+> **🔴 스펙 §2.4 정정.** 스펙은 "Flutter 빌드가 산출물 루트로 복사하므로 홈페이지 레포는 건드리지 않는다"고 했으나 **틀렸다.** gitops ingress 실측 결과 웹앱은 **`app.leva.ai.kr`**(`devpath-gitops/apps/devpath-web/base/ingress.yaml`)이고 루트 `leva.ai.kr`은 별도 레포 `devpath-home-page`(CF Pages)다. `ads.txt`는 페이지 호스트의 **루트 도메인**에서 조회되는 것이 표준이라 `app.leva.ai.kr/ads.txt`만 두면 찾지 못한다.
+
+**(a) 웹앱 쪽** — `apps/web/web/ads.txt`:
 
 ```
 google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
 ```
+
+**(b) 루트 도메인 쪽** — `devpath-home-page` 레포에 같은 내용의 `ads.txt`를 레포 루트에 만든다.
+
+**그리고 `build.mjs`의 `DEPLOY_ENTRIES` 배열에 `'ads.txt'`를 추가한다.** 이 레포는 화이트리스트 복사 빌드라(`build.mjs:11`) 목록에 없으면 `dist/`로 나가지 않고, 파일을 만들어도 배포되지 않는다.
+
+```js
+const DEPLOY_ENTRIES = ['index.html', 'src', 'assets', '_headers', '_redirects', 'robots.txt', 'favicon.ico', 'ads.txt'];
+```
+
+이 변경은 `devpath-home-page`에서 별도 브랜치·PR로 처리한다(`develop` 분기 → PR → 머지).
+
+> 최종 확인은 애드센스 콘솔이 요구하는 위치를 따른다. 콘솔이 `app.leva.ai.kr`만 지목하면 (b)는 불필요하지만, **없어서 못 찾는 것보다 양쪽에 두는 편이 안전하다**(중복은 무해).
 
 - [ ] **Step 4: 치환 누락 확인**
 
@@ -2081,10 +2129,17 @@ final adSlotConfigSaveProvider = Provider<AdSlotConfigSave>((ref) {
 
 `ads_controller.dart`의 `load()`에서 슬롯 설정을 함께 읽고, 저장 메서드를 추가한다. 상단에 `import '../data/ad_slot_config_row.dart';`를 더한다.
 
-`load()`의 `final enabled = …` 다음 줄에 추가:
+`load()`의 `final enabled = …` 다음 줄에 추가한다. **슬롯 설정 조회 실패가 광고 관리 화면 전체를 죽이면 안 된다** — `load()`의 `catch (ApiException)`은 `phase: failed`로 가므로, 여기서 걸리면 기존 목록·전역 토글까지 함께 잃는다. 새 부가 기능이 기존 화면의 하드 의존이 되지 않도록 **자체 try로 감싸 빈 리스트로 폴백**한다.
 
 ```dart
-      final configs = await ref.read(adSlotConfigListProvider)();
+      // 슬롯 설정은 부가 기능이다. 조회 실패가 광고 목록 화면을 무너뜨리지 않게
+      // 여기서 흡수한다(백엔드 미배포·권한·네트워크).
+      List<AdSlotConfigRow> configs = const [];
+      try {
+        configs = await ref.read(adSlotConfigListProvider)();
+      } on ApiException {
+        configs = const [];
+      }
 ```
 
 그리고 그 아래 `state = AdsState(...)` 생성자 호출에 인자를 추가:
@@ -2093,13 +2148,13 @@ final adSlotConfigSaveProvider = Provider<AdSlotConfigSave>((ref) {
         slotConfigs: configs,
 ```
 
-`load()` 시작부의 `state = AdsState(phase: AdsPhase.loading, …)`에도 기존 값을 보존하도록 추가:
-
-```dart
-      slotConfigs: state.slotConfigs,
-```
-
-> `setSlotFilter`·`setStatusFilter`의 `AdsState(...)` 생성자 호출에도 같은 줄을 추가한다(세 곳 모두 `AdsState`를 새로 만들기 때문에 빠뜨리면 다이얼로그가 빈 목록을 본다).
+> **`AdsState`를 새로 만드는 곳은 실측 4곳이다** — `load()`의 loading·`load()`의 loaded·`setSlotFilter`·`setStatusFilter`. `copyWith`가 아니라 생성자를 새로 호출하므로 **네 곳 전부**에 아래 줄을 넣어야 한다. 하나라도 빠지면 다이얼로그가 빈 목록을 본다.
+>
+> ```dart
+>       slotConfigs: state.slotConfigs,
+> ```
+>
+> (`load()`의 loaded 분기만 `slotConfigs: configs`이고, 나머지 세 곳은 `state.slotConfigs` 보존이다.)
 
 저장 메서드를 클래스 끝에 추가:
 
@@ -2360,11 +2415,19 @@ document.querySelector('ins.adsbygoogle').getAttribute('data-ad-status')
 
 기대: `"unfilled"`(심사 전). 그리고 대시보드 상단에 **빈 상자가 남아 있지 않은지** 눈으로 확인한다.
 
-- [ ] **Step 6: 재진입 시 중복 삽입 에러가 없는지 확인**
+- [ ] **Step 6: 재진입 시 중복 삽입 에러와 누수가 없는지 확인**
 
 대시보드 → 다른 화면 → 대시보드로 3회 왕복한 뒤 콘솔 에러를 본다.
 
 기대: `"already have ads in them"` 에러가 **없다**. 나오면 Task 7의 `_seq++` viewType 생성이 인스턴스마다 도는지 확인한다.
+
+이어서 **누수**도 함께 본다. `_seq++`는 인스턴스마다 새 viewType을 등록하는데 Flutter web에는 unregister API가 없어 viewFactory가 영구 누적된다. Monaco는 샌드박스 1곳·단일 인스턴스라 문제되지 않았지만, 광고는 3슬롯 × 네비게이션마다 등록된다.
+
+```js
+document.querySelectorAll('ins.adsbygoogle').length
+```
+
+기대: 왕복 후에도 **화면에 살아 있는 슬롯 수만큼만** 남는다(대시보드면 `1`). 계속 증가하면 `dispose()`의 `<ins>` 제거가 동작하지 않는 것이므로 Task 8의 심 `dispose`를 확인한다. viewType 등록 누적 자체는 이번 범위에서 해소하지 않되, **관측 결과를 Step 10 보고서에 수치로 남긴다.**
 
 - [ ] **Step 7: 애드블록 상태 확인**
 
