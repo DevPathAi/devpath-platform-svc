@@ -1,6 +1,7 @@
 package ai.devpath.platform.ads;
 
 import ai.devpath.platform.ads.dto.AdEventRequest;
+import ai.devpath.platform.ads.dto.AdServeResponse;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,10 +26,12 @@ public class AdController {
     this.eventService = eventService;
   }
 
-  /** GET /ads?slot=DASHBOARD_TOP — 적격 광고 1개(200) 또는 없음(204). */
+  /** GET /ads?slot=DASHBOARD_TOP — 서빙할 내용(200) 또는 없음(204). */
   @GetMapping("/ads")
-  public ResponseEntity<AdView> ad(@AuthenticationPrincipal Jwt jwt, @RequestParam String slot) {
+  public ResponseEntity<AdServeResponse> ad(
+      @AuthenticationPrincipal Jwt jwt, @RequestParam String slot) {
     return serve.serve(slot, Long.parseLong(jwt.getSubject()))
+        .map(AdServeResponse::from)
         .map(ResponseEntity::ok)
         .orElseGet(() -> ResponseEntity.noContent().build());
   }
