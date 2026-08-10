@@ -13,24 +13,44 @@ public class AdServeService {
 
   private final AdvertisementRepository ads;
   private final AdSettingsService settings;
+  private final AdSlotConfigService slotConfigs;
   private final Random random;
 
-  public AdServeService(AdvertisementRepository ads, AdSettingsService settings, Random random) {
+  public AdServeService(AdvertisementRepository ads, AdSettingsService settings,
+      AdSlotConfigService slotConfigs, Random random) {
     this.ads = ads;
     this.settings = settings;
+    this.slotConfigs = slotConfigs;
     this.random = random;
   }
 
   @Transactional(readOnly = true)
-  public Optional<AdView> serve(String slot, long userId) {
+  public Optional<AdSlotContent> serve(String slot, long userId) {
     if (!settings.isEnabled() || !userShouldSeeAds(userId)) {
       return Optional.empty();
     }
+    AdSlotConfig config = slotConfigs.get(slot);
+    return switch (config.getSource()) {
+      case AdSlotSource.OFF -> Optional.empty();
+      case AdSlotSource.ADSENSE -> adsense(config);
+      default -> house(slot);
+    };
+  }
+
+  /** 단위 ID가 없으면 접는다(미설정). */
+  private Optional<AdSlotContent> adsense(AdSlotConfig config) {
+    String unitId = config.getAdsenseSlotId();
+    return unitId == null
+        ? Optional.empty()
+        : Optional.of(new AdSlotContent.Adsense(unitId));
+  }
+
+  private Optional<AdSlotContent> house(String slot) {
     List<Advertisement> eligible = ads.findEligible(AdSlot.parse(slot), Instant.now());
     if (eligible.isEmpty()) {
       return Optional.empty();
     }
-    return Optional.of(AdView.of(pickWeighted(eligible)));
+    return Optional.of(new AdSlotContent.House(AdView.of(pickWeighted(eligible))));
   }
 
   /**
