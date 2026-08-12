@@ -2,7 +2,7 @@ package ai.devpath.platform.consent;
 
 /** 동의 항목 종류. 필수(TERMS·PRIVACY)는 철회 시 409(ConsentRevokeConflictException). */
 public enum ConsentType {
-	TERMS(true, "v1"),
+	TERMS(true, "v2"),
 	PRIVACY(true, "v1"),
 	MARKETING(false, "v1"),
 	LCS_ATTACH(false, "v1"),

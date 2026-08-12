@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class ConsentServiceTest {
 
@@ -117,6 +118,29 @@ class ConsentServiceTest {
     service.submit(1L, req);
 
     assertThat(user.getConsentStatus()).isNotEqualTo("DONE");
+  }
+
+  @Test
+  void submitPersistsTermsAtVersionTwo() {
+    User user = new User();
+    when(users.findById(1L)).thenReturn(Optional.of(user));
+    when(consents.findByUserIdOrderByAgreedAtDesc(1L)).thenReturn(List.of());
+    ConsentSubmitRequest req =
+        requestWith(1990, new ConsentSubmitRequest.Item(ConsentType.TERMS, true));
+
+    service.submit(1L, req);
+
+    ArgumentCaptor<Consent> saved = ArgumentCaptor.forClass(Consent.class);
+    verify(consents).save(saved.capture());
+    assertThat(saved.getValue().getType()).isEqualTo(ConsentType.TERMS);
+    assertThat(saved.getValue().getVersion()).isEqualTo("v2");
+  }
+
+  // 약관만 개정했다. 처리방침 버전을 함께 올리면 동의 이력이 사실과 어긋난다
+  // (재동의 시 PRIVACY 도 다시 받지만, 받는 것은 여전히 v1 이다).
+  @Test
+  void privacyStaysAtVersionOne() {
+    assertThat(ConsentType.PRIVACY.version).isEqualTo("v1");
   }
 
   @Test
