@@ -1,5 +1,7 @@
 package ai.devpath.platform.onboarding;
 
+import ai.devpath.platform.user.UserProfile;
+import ai.devpath.platform.user.UserProfileRepository;
 import ai.devpath.platform.user.UserRepository;
 import ai.devpath.shared.event.AssessmentCompletedEvent;
 import org.slf4j.Logger;
@@ -15,10 +17,13 @@ public class AssessmentCompletedConsumer {
   private static final Logger log = LoggerFactory.getLogger(AssessmentCompletedConsumer.class);
 
   private final UserRepository users;
+  private final UserProfileRepository profiles;
   private final JsonMapper jsonMapper;
 
-  public AssessmentCompletedConsumer(UserRepository users, JsonMapper jsonMapper) {
+  public AssessmentCompletedConsumer(
+      UserRepository users, UserProfileRepository profiles, JsonMapper jsonMapper) {
     this.users = users;
+    this.profiles = profiles;
     this.jsonMapper = jsonMapper;
   }
 
@@ -36,5 +41,18 @@ public class AssessmentCompletedConsumer {
     if (updated == 0) {
       log.debug("onboarding_status 무변동(userId={} 미존재 또는 PENDING 아님)", event.userId());
     }
+
+    // 진단에서 고른 트랙을 프로필에 반영한다. 프로필 행은 아직 없을 수 있다.
+    UserProfile profile =
+        profiles
+            .findById(event.userId())
+            .orElseGet(
+                () -> {
+                  UserProfile p = new UserProfile();
+                  p.setUserId(event.userId());
+                  return p;
+                });
+    profile.setTargetTrack(event.track());
+    profiles.save(profile);
   }
 }
