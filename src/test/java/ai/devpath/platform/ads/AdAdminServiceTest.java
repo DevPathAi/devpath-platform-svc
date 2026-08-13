@@ -82,4 +82,14 @@ class AdAdminServiceTest {
     assertThatThrownBy(() -> service.create(new AdRequest("t", null, "  ", "DASHBOARD_TOP", 1, "ACTIVE", null, null)))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void bulkDeleteRemovesExistingIgnoresMissing() {
+    AdRow a = service.create(new AdRequest("벌크1", null, "https://e.com", "DASHBOARD_TOP", 1, "ACTIVE", null, null));
+    AdRow b = service.create(new AdRequest("벌크2", null, "https://e.com", "DASHBOARD_TOP", 1, "ACTIVE", null, null));
+
+    service.bulkDelete(java.util.List.of(a.id(), b.id(), 999999L));
+
+    assertThat(service.list(null, null)).extracting(AdRow::id).doesNotContain(a.id(), b.id());
+  }
 }

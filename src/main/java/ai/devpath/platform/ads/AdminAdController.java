@@ -3,10 +3,13 @@ package ai.devpath.platform.ads;
 import ai.devpath.platform.ads.dto.AdRequest;
 import ai.devpath.platform.ads.dto.AdRow;
 import ai.devpath.platform.ads.dto.AdSettingsView;
+import ai.devpath.platform.ads.dto.AdSlotConfigRequest;
+import ai.devpath.platform.ads.dto.AdSlotConfigView;
 import ai.devpath.platform.ads.dto.AdStatsRow;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -22,13 +25,30 @@ public class AdminAdController {
   private final AdImageService imageService;
   private final AdSettingsService settingsService;
   private final AdStatsService statsService;
+  private final AdSlotConfigService slotConfigService;
 
   public AdminAdController(AdAdminService service, AdImageService imageService,
-      AdSettingsService settingsService, AdStatsService statsService) {
+      AdSettingsService settingsService, AdStatsService statsService,
+      AdSlotConfigService slotConfigService) {
     this.service = service;
     this.imageService = imageService;
     this.settingsService = settingsService;
     this.statsService = statsService;
+    this.slotConfigService = slotConfigService;
+  }
+
+  /** GET /admin/ads/slot-config — 슬롯 3행(slot 오름차순). */
+  @GetMapping("/slot-config")
+  public List<AdSlotConfigView> slotConfigs() {
+    return slotConfigService.list().stream().map(AdSlotConfigView::of).toList();
+  }
+
+  /** PUT /admin/ads/slot-config/{slot} — 소스와 애드센스 단위 ID를 갱신한다. */
+  @PutMapping("/slot-config/{slot}")
+  public AdSlotConfigView updateSlotConfig(
+      @PathVariable String slot, @RequestBody AdSlotConfigRequest body) {
+    return AdSlotConfigView.of(
+        slotConfigService.update(slot, body.source(), body.adsenseSlotId()));
   }
 
   @GetMapping
@@ -52,6 +72,12 @@ public class AdminAdController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void delete(@PathVariable long id) {
     service.delete(id);
+  }
+
+  @PostMapping("/bulk-delete")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void bulkDelete(@RequestBody Map<String, List<Long>> body) {
+    service.bulkDelete(body.getOrDefault("ids", List.of()));
   }
 
   @PostMapping("/{id}/image")

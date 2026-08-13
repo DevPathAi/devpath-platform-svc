@@ -20,9 +20,14 @@ class RefreshTokenStoreTest {
 	@Autowired StringRedisTemplate redis;
 
 	private RefreshTokenStore store(Duration grace) {
+		return store(grace, true);
+	}
+
+	private RefreshTokenStore store(Duration grace, boolean reuseDetection) {
 		AuthProperties props = new AuthProperties();
 		props.setRefreshTtl(Duration.ofDays(14));
 		props.setRefreshRotateGrace(grace);
+		props.setRefreshReuseDetection(reuseDetection);
 		return new RefreshTokenStore(redis, props);
 	}
 
@@ -98,5 +103,45 @@ class RefreshTokenStoreTest {
 		assertTrue(s.rotate(t).isPresent(), "만료 전 재사용 가능");
 		Thread.sleep(250);
 		assertFalse(s.rotate(t).isPresent(), "유예 재사용이 TTL을 연장하면 안 됨");
+	}
+
+	@Test
+	void reuseDetectionEnabledByDefault() {
+		assertTrue(new AuthProperties().isRefreshReuseDetection(),
+				"보안 기본값: 재사용 감지는 기본 활성(enforce)");
+	}
+
+	@Test
+	void reuseOutsideGraceRevokesAllSessions() throws InterruptedException {
+		RefreshTokenStore s = store(Duration.ofMillis(80), true);
+		String t1 = s.issue(100L);
+		String t2 = s.issue(100L);              // 다른 기기(2세션)
+		var n1 = s.rotate(t1).orElseThrow();    // t1 → 묘비, 신규 n1 발급
+		Thread.sleep(300);                      // 유예창(80ms) 밖으로
+		assertFalse(s.rotate(t1).isPresent(), "유예창 밖 재사용 → empty(401)");
+		// 탈취 감지 → 전 세션 폐기
+		assertFalse(s.validate(t2).isPresent(), "다른 세션 토큰도 폐기");
+		assertFalse(s.validate(n1.newToken()).isPresent(), "회전으로 받은 신규 토큰도 폐기");
+	}
+
+	@Test
+	void reuseWithinGraceDoesNotRevoke() {
+		RefreshTokenStore s = store(Duration.ofSeconds(30), true);
+		String t1 = s.issue(101L);
+		String t2 = s.issue(101L);
+		s.rotate(t1).orElseThrow();             // 묘비 생성
+		assertTrue(s.rotate(t1).isPresent(), "유예창 안 재사용은 정상(새 토큰)");
+		assertTrue(s.validate(t2).isPresent(), "다른 세션은 폐기되지 않음");
+	}
+
+	@Test
+	void reuseOutsideGraceWithDetectionOffDoesNotRevoke() throws InterruptedException {
+		RefreshTokenStore s = store(Duration.ofMillis(80), false);   // 킬스위치 off
+		String t1 = s.issue(102L);
+		String t2 = s.issue(102L);
+		s.rotate(t1).orElseThrow();
+		Thread.sleep(300);
+		assertFalse(s.rotate(t1).isPresent(), "detection off라도 스테일 토큰은 여전히 거부(401)");
+		assertTrue(s.validate(t2).isPresent(), "단, off면 다른 세션은 유지(revokeAll 미실행)");
 	}
 }

@@ -81,6 +81,13 @@ public class AdminUserController {
         return ResponseEntity.noContent().build();
     }
 
+    /** 여러 사용자 일괄 승인 — 204. body: {"ids":[<number>]}. */
+    @PostMapping("/users/bulk-approve")
+    public ResponseEntity<Void> bulkApprove(@RequestBody Map<String, List<Long>> body) {
+        betaService.bulkApprove(body.getOrDefault("ids", List.of()));
+        return ResponseEntity.noContent().build();
+    }
+
     /**
      * 이메일 사전승인 — 204 No Content.
      * 이미 가입한 사용자라면 즉시 ACTIVE로 전환한다.
