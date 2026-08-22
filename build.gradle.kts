@@ -8,6 +8,9 @@ group = "ai.devpath"
 version = "0.0.1-SNAPSHOT"
 description = "DevPath AI platform services (user/auth, github collector, notification)"
 
+val devpathSharedVersion = providers.gradleProperty("devpathSharedVersion").get()
+val devpathSharedCoordinate = "ai.devpath:devpath-shared:$devpathSharedVersion"
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
@@ -15,6 +18,9 @@ java {
 }
 
 repositories {
+	providers.gradleProperty("immutableSharedRepository").orNull?.let { repository ->
+		maven { url = uri(repository) }
+	}
 	mavenCentral()
 	maven {
 		url = uri("https://maven.pkg.github.com/DevPathAi/devpath-shared")
@@ -35,7 +41,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("com.google.crypto.tink:tink:1.18.0")
-	implementation("ai.devpath:devpath-shared:0.0.1-SNAPSHOT")
+	implementation(devpathSharedCoordinate)
 	// P2 avatar: shared storage는 s3를 compileOnly로 제공 → 소비 svc가 런타임 s3 제공(MinIO 호환)
 	runtimeOnly(platform("software.amazon.awssdk:bom:2.28.0"))
 	runtimeOnly("software.amazon.awssdk:s3")
@@ -65,4 +71,3 @@ dependencies {
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
-
