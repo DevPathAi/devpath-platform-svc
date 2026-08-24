@@ -67,6 +67,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		var client = authorizedClients.loadAuthorizedClient(registrationId, token.getName());
 		String accessToken = (client != null && client.getAccessToken() != null)
 				? client.getAccessToken().getTokenValue() : null;
+		// The deterministic staging provider issues a one-time test credential. It is
+		// consumed by userinfo and must never be copied into the durable OAuth identity.
+		if ("release".equals(registrationId)) accessToken = null;
 
 		User user;
 		try {

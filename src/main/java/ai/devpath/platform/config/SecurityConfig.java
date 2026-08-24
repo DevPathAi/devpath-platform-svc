@@ -5,6 +5,9 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -18,6 +21,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
@@ -72,7 +78,39 @@ public class SecurityConfig {
 	}
 
 	@Bean
-	public SecurityFilterChain securityFilterChain(
+	@Order(1)
+	public SecurityFilterChain releaseSecurityFilterChain(HttpSecurity http) throws Exception {
+		http
+			.securityMatcher("/v1/release/**")
+			.csrf(csrf -> csrf.disable())
+			.cors(cors -> {})
+			.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
+		return http.build();
+	}
+
+	@Bean
+	public CorsConfigurationSource corsConfigurationSource() {
+		CorsConfiguration release = new CorsConfiguration();
+		release.setAllowedOrigins(java.util.List.of(
+			"https://leva.ai.kr",
+			"https://app.leva.ai.kr"));
+		release.setAllowedMethods(java.util.List.of(
+			HttpMethod.GET.name(), HttpMethod.POST.name(), HttpMethod.OPTIONS.name()));
+		release.setAllowedHeaders(java.util.List.of(
+			HttpHeaders.ACCEPT,
+			HttpHeaders.CONTENT_TYPE,
+			"X-Candidate-Spec-Sha256",
+			"X-Release-Run-Key"));
+		release.setAllowCredentials(false);
+		release.setMaxAge(300L);
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/v1/release/browser/**", release);
+		return source;
+	}
+
+	@Bean
+	@Order(2)
+	public SecurityFilterChain applicationSecurityFilterChain(
 			HttpSecurity http,
 			ai.devpath.platform.auth.OAuth2LoginSuccessHandler successHandler,
 			ai.devpath.platform.auth.GithubEmailOAuth2UserService githubEmailService,
