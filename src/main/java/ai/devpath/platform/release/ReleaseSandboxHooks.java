@@ -5,6 +5,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -59,6 +60,7 @@ public class ReleaseSandboxHooks implements ReleaseJourneyHooks {
 	private final UserRepository users;
 	private final RestClient rest;
 
+	@Autowired
 	public ReleaseSandboxHooks(
 			ReleaseControlProperties properties,
 			UserRepository users,
