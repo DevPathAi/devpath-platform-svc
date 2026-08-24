@@ -84,6 +84,11 @@ devpath:
     oauth-client-secret: ${MISSION_RELEASE_OAUTH_CLIENT_SECRET:disabled-release-secret}
     oauth-redirect-uri: ${MISSION_RELEASE_OAUTH_REDIRECT_URI:https://api.leva.ai.kr/login/oauth2/code/release}
     analytics-origin: ${MISSION_RELEASE_ANALYTICS_ORIGIN:https://analytics-spy.staging.leva.ai.kr}
+    sandbox-origin: ${MISSION_RELEASE_SANDBOX_ORIGIN:}
+    ai-origin: ${MISSION_RELEASE_AI_ORIGIN:}
+    lcs-origin: ${MISSION_RELEASE_LCS_ORIGIN:}
+    learning-origin: ${MISSION_RELEASE_LEARNING_ORIGIN:}
+    internal-token: ${MISSION_RELEASE_INTERNAL_TOKEN:}
     run-ttl: ${MISSION_RELEASE_RUN_TTL:PT45M}
     oauth-code-ttl: ${MISSION_RELEASE_OAUTH_CODE_TTL:PT1M}
     oauth-access-ttl: ${MISSION_RELEASE_OAUTH_ACCESS_TTL:PT5M}

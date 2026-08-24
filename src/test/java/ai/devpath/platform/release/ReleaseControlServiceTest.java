@@ -162,6 +162,92 @@ class ReleaseControlServiceTest {
 			.isTrue();
 	}
 
+	@Test
+	void onboardingSensitiveBoundaryUsesOnlyCompletedOauthAndSanitizedAnalyticsState() {
+		control.prepare(TOKEN, CANDIDATE, JOURNEY);
+		oauth.authorize(CANDIDATE, RUN_KEY, "release-client", "response-state");
+		oauth.exchange(
+			"C".repeat(43),
+			"release-client",
+			"release-client-secret",
+			"https://api.leva.ai.kr/login/oauth2/code/release");
+		control.command(TOKEN, CANDIDATE, RUN_KEY, JOURNEY, "grant-analytics-permission");
+		control.captureAnalytics(CANDIDATE, RUN_KEY, "landing_viewed",
+			Map.of("contract_version", "mission-spine.analytics.v1"));
+
+		assertThat(control.checkpoint(
+			TOKEN, CANDIDATE, RUN_KEY, JOURNEY, "sensitive-boundaries-clean").passed())
+			.isTrue();
+	}
+
+	@Test
+	void localArtifactAndLandingHandoffCheckpointsRequireTheirObservedEvidence() {
+		control.prepare(TOKEN, CANDIDATE, JOURNEY);
+
+		assertThat(control.checkpoint(
+			TOKEN, CANDIDATE, RUN_KEY, JOURNEY, "landing-production-artifact").passed())
+			.isTrue();
+		assertThat(control.checkpoint(
+			TOKEN, CANDIDATE, RUN_KEY, JOURNEY, "journey-handoff-consumed").passed())
+			.isFalse();
+
+		control.command(TOKEN, CANDIDATE, RUN_KEY, JOURNEY, "grant-analytics-permission");
+		control.captureAnalytics(CANDIDATE, RUN_KEY, "landing_diagnostic_cta_clicked",
+			Map.of("contract_version", "mission-spine.analytics.v1"));
+
+		assertThat(control.checkpoint(
+			TOKEN, CANDIDATE, RUN_KEY, JOURNEY, "journey-handoff-consumed").passed())
+			.isTrue();
+	}
+
+	@Test
+	void downstreamHooksMustAcceptCommandsAndOwnNonlocalCheckpoints() {
+		RecordingJourneyHooks hooks = new RecordingJourneyHooks();
+		ReleaseControlProperties properties = properties();
+		control = new ReleaseControlService(
+			properties, state, fixtures, hooks, () -> RUN_KEY);
+		control.prepare(TOKEN, CANDIDATE, "mission-spine-workspace");
+
+		control.command(
+			TOKEN,
+			CANDIDATE,
+			RUN_KEY,
+			"mission-spine-workspace",
+			"next-run-timeout");
+		assertThat(hooks.lastCommand).isEqualTo("next-run-timeout");
+		assertThat(control.checkpoint(
+			TOKEN,
+			CANDIDATE,
+			RUN_KEY,
+			"mission-spine-workspace",
+			"owner-recovery-timed-out").passed()).isTrue();
+		assertThat(hooks.lastCheckpoint).isEqualTo("owner-recovery-timed-out");
+	}
+
+	private static ReleaseControlProperties properties() {
+		ReleaseControlProperties properties = new ReleaseControlProperties();
+		properties.setEnabled(true);
+		properties.setControlToken(TOKEN);
+		properties.setFixtureRevision("f".repeat(40));
+		return properties;
+	}
+
+	private static final class RecordingJourneyHooks implements ReleaseJourneyHooks {
+		String lastCommand;
+		String lastCheckpoint;
+
+		@Override
+		public void command(ReleaseRunState run, String command) {
+			lastCommand = command;
+		}
+
+		@Override
+		public boolean checkpoint(ReleaseRunState run, String checkpoint) {
+			lastCheckpoint = checkpoint;
+			return true;
+		}
+	}
+
 	private static final class RecordingFixtureProvisioner implements ReleaseFixtureProvisioner {
 		String lastEmail;
 

@@ -64,14 +64,16 @@ public class ReleaseControlService {
 	private final ReleaseControlProperties properties;
 	private final ReleaseStateStore state;
 	private final ReleaseFixtureProvisioner fixtures;
+	private final ReleaseJourneyHooks hooks;
 	private final Supplier<String> runKeys;
 
 	@Autowired
 	public ReleaseControlService(
 			ReleaseControlProperties properties,
 			ReleaseStateStore state,
-			ReleaseFixtureProvisioner fixtures) {
-		this(properties, state, fixtures, ReleaseTokens::random);
+			ReleaseFixtureProvisioner fixtures,
+			ReleaseJourneyHooks hooks) {
+		this(properties, state, fixtures, hooks, ReleaseTokens::random);
 	}
 
 	ReleaseControlService(
@@ -79,9 +81,19 @@ public class ReleaseControlService {
 			ReleaseStateStore state,
 			ReleaseFixtureProvisioner fixtures,
 			Supplier<String> runKeys) {
+		this(properties, state, fixtures, ReleaseJourneyHooks.NONE, runKeys);
+	}
+
+	ReleaseControlService(
+			ReleaseControlProperties properties,
+			ReleaseStateStore state,
+			ReleaseFixtureProvisioner fixtures,
+			ReleaseJourneyHooks hooks,
+			Supplier<String> runKeys) {
 		this.properties = properties;
 		this.state = state;
 		this.fixtures = fixtures;
+		this.hooks = hooks;
 		this.runKeys = runKeys;
 	}
 
@@ -105,7 +117,7 @@ public class ReleaseControlService {
 		requireRunKey(runKey);
 		String email = fixtureEmail(candidateSpecSha256, runKey);
 		fixtures.provision(candidateSpecSha256, runKey, journey, email);
-		state.saveRun(new ReleaseRunState(
+		ReleaseRunState prepared = new ReleaseRunState(
 			candidateSpecSha256,
 			runKey,
 			journey,
@@ -115,7 +127,9 @@ public class ReleaseControlService {
 			List.of(),
 			Set.of(),
 			false,
-			false), properties.getRunTtl());
+			false);
+		hooks.prepare(prepared);
+		state.saveRun(prepared, properties.getRunTtl());
 		return new Prepared(runKey, properties.getFixtureRevision());
 	}
 
@@ -133,6 +147,7 @@ public class ReleaseControlService {
 		if ("replay-oauth-callback".equals(command) && !run.oauthExchanged()) {
 			throw new ReleaseControlException("deterministic OAuth has not completed");
 		}
+		hooks.command(run, command);
 		ReleaseRunState updated = "grant-analytics-permission".equals(command)
 			? run.withAnalyticsPermission().withCommand(command)
 			: run.withCommand(command);
@@ -197,11 +212,35 @@ public class ReleaseControlService {
 		boolean passed = switch (checkpoint) {
 			case "analytics-prepermission-zero" ->
 				!run.analyticsPermission() && run.analyticsEvents().isEmpty();
+			case "landing-production-artifact", "web-production-artifact" ->
+				properties.getCapabilities().contains("production-artifact-probe");
+			case "journey-handoff-consumed" -> run.analyticsEvents().stream()
+				.anyMatch(event -> "landing_diagnostic_cta_clicked".equals(event.event()));
 			case "deterministic-oauth-complete" -> run.oauthExchanged();
-			case "sensitive-boundaries-clean" -> true;
-			default -> false;
+			case "sensitive-boundaries-clean" -> sensitiveStateClean(run)
+				&& ("mission-spine-onboarding".equals(run.journey())
+					|| hooks.checkpoint(run, checkpoint));
+			default -> hooks.checkpoint(run, checkpoint);
 		};
 		return new Checkpoint(passed);
+	}
+
+	private boolean sensitiveStateClean(ReleaseRunState run) {
+		if (!run.oauthExchanged() || !run.analyticsPermission()
+				|| run.analyticsEvents().isEmpty()) return false;
+		for (ReleaseAnalyticsEvent event : run.analyticsEvents()) {
+			if (!ANALYTICS_EVENTS.contains(event.event()) || event.properties() == null) return false;
+			for (var entry : event.properties().entrySet()) {
+				if (BANNED_ANALYTICS_PROPERTIES.contains(
+						entry.getKey().toLowerCase(java.util.Locale.ROOT))) return false;
+				Object value = entry.getValue();
+				if (value != null
+						&& !(value instanceof String || value instanceof Number || value instanceof Boolean)) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	ReleaseRunState requireRun(String candidateSpecSha256, String runKey, String journey) {

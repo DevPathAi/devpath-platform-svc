@@ -14,6 +14,11 @@ public class ReleaseControlProperties {
 	private String oauthClientSecret = "disabled-release-secret";
 	private String oauthRedirectUri = "https://api.leva.ai.kr/login/oauth2/code/release";
 	private String analyticsOrigin = "https://analytics-spy.staging.leva.ai.kr";
+	private String sandboxOrigin = "";
+	private String aiOrigin = "";
+	private String lcsOrigin = "";
+	private String learningOrigin = "";
+	private String internalToken = "";
 	private Duration runTtl = Duration.ofMinutes(45);
 	private Duration oauthCodeTtl = Duration.ofMinutes(1);
 	private Duration oauthAccessTtl = Duration.ofMinutes(5);
@@ -33,6 +38,16 @@ public class ReleaseControlProperties {
 	public void setOauthRedirectUri(String value) { oauthRedirectUri = value; }
 	public String getAnalyticsOrigin() { return analyticsOrigin; }
 	public void setAnalyticsOrigin(String value) { analyticsOrigin = value; }
+	public String getSandboxOrigin() { return sandboxOrigin; }
+	public void setSandboxOrigin(String value) { sandboxOrigin = value; }
+	public String getAiOrigin() { return aiOrigin; }
+	public void setAiOrigin(String value) { aiOrigin = value; }
+	public String getLcsOrigin() { return lcsOrigin; }
+	public void setLcsOrigin(String value) { lcsOrigin = value; }
+	public String getLearningOrigin() { return learningOrigin; }
+	public void setLearningOrigin(String value) { learningOrigin = value; }
+	public String getInternalToken() { return internalToken; }
+	public void setInternalToken(String value) { internalToken = value; }
 	public Duration getRunTtl() { return runTtl; }
 	public void setRunTtl(Duration value) { runTtl = value; }
 	public Duration getOauthCodeTtl() { return oauthCodeTtl; }
