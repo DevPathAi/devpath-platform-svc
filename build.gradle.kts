@@ -35,6 +35,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.boot:spring-boot-restclient")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
@@ -63,11 +64,28 @@ dependencies {
 	testCompileOnly("org.projectlombok:lombok")
 	testImplementation("org.awaitility:awaitility")
 	testImplementation("no.nav.security:mock-oauth2-server:2.1.10")
-	testImplementation("org.springframework.boot:spring-boot-restclient")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testAnnotationProcessor("org.projectlombok:lombok")
 }
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+val verifyProductionRestClientRuntime by tasks.registering {
+	doLast {
+		val hasRestClientAutoConfiguration = configurations.runtimeClasspath.get()
+			.resolvedConfiguration.resolvedArtifacts
+			.any { artifact ->
+				artifact.moduleVersion.id.group == "org.springframework.boot"
+					&& artifact.name == "spring-boot-restclient"
+			}
+		check(hasRestClientAutoConfiguration) {
+			"Production runtime must include spring-boot-restclient for RestClient.Builder auto-configuration"
+		}
+	}
+}
+
+tasks.named("check") {
+	dependsOn(verifyProductionRestClientRuntime)
 }
