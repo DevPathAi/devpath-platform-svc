@@ -83,34 +83,54 @@ public class ReleaseSandboxHooks implements ReleaseJourneyHooks {
 			Map<String, Object> request = command.startsWith("seed-stale-")
 				? Map.of("user_id", fixtureUserId(run))
 				: Map.of();
-			post(run, properties.getSandboxOrigin(), "sandbox", command, request);
+			postCommand(run, properties.getSandboxOrigin(), "sandbox", command, request);
 			return;
 		}
 		if (AI_COMMANDS.contains(command)) {
-			post(run, properties.getAiOrigin(), "ai", command,
+			postCommand(run, properties.getAiOrigin(), "ai", command,
 				Map.of("user_id", fixtureUserId(run)));
 			return;
 		}
 		if (LEARNING_COMMANDS.contains(command)) {
-			post(run, properties.getLearningOrigin(), "learning", command,
+			postCommand(run, properties.getLearningOrigin(), "learning", command,
 				Map.of("user_id", fixtureUserId(run)));
 			return;
 		}
 		if ("clear-faults".equals(command)) {
-			post(run, properties.getSandboxOrigin(), "sandbox", command, Map.of());
-			post(run, properties.getAiOrigin(), "ai", command,
+			postCommand(run, properties.getSandboxOrigin(), "sandbox", command, Map.of());
+			postCommand(run, properties.getAiOrigin(), "ai", command,
 				Map.of("user_id", fixtureUserId(run)));
 		}
 	}
 
-	private void post(
+	@Override
+	public void login(ReleaseRunState run, ai.devpath.platform.user.User user) {
+		if (!"mission-spine-workspace".equals(run.journey())) return;
+		postEndpoint(run, properties.getLearningOrigin(), "learning", "/prepare",
+			Map.of("user_id", user.getId()));
+		user.setConsentStatus("DONE");
+		user.setOnboardingStatus("DONE");
+		user.setBirthYear(2000);
+		users.save(user);
+	}
+
+	private void postCommand(
 			ReleaseRunState run,
 			String origin,
 			String service,
 			String command,
 			Map<String, Object> request) {
+		postEndpoint(run, origin, service, "/commands/" + command, request);
+	}
+
+	private void postEndpoint(
+			ReleaseRunState run,
+			String origin,
+			String service,
+			String suffix,
+			Map<String, Object> request) {
 		Map<?, ?> response = rest.post()
-			.uri(endpoint(run, origin, service, "/commands/" + command))
+			.uri(endpoint(run, origin, service, suffix))
 			.header("X-DevPath-Internal-Token", internalToken())
 			.body(request)
 			.retrieve()

@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import ai.devpath.platform.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -224,6 +225,27 @@ class ReleaseControlServiceTest {
 		assertThat(hooks.lastCheckpoint).isEqualTo("owner-recovery-timed-out");
 	}
 
+	@Test
+	void releaseLoginRequiresTheExactFixtureUserAndInvokesTheJourneyHook() {
+		RecordingJourneyHooks hooks = new RecordingJourneyHooks();
+		control = new ReleaseControlService(properties(), state, fixtures, hooks, () -> RUN_KEY);
+		control.prepare(TOKEN, CANDIDATE, "mission-spine-workspace");
+		User user = new User();
+		user.setEmail(fixtures.lastEmail);
+		assertThatThrownBy(() -> control.completeLogin(CANDIDATE, RUN_KEY, user))
+			.hasMessageContaining("OAuth");
+		state.saveRun(state.findRun(CANDIDATE, RUN_KEY).orElseThrow()
+			.withOauthIssued().withOauthExchanged(), Duration.ofMinutes(45));
+
+		control.completeLogin(CANDIDATE, RUN_KEY, user);
+		assertThat(hooks.lastLogin).isSameAs(user);
+
+		User wrong = new User();
+		wrong.setEmail("different@staging.leva.invalid");
+		assertThatThrownBy(() -> control.completeLogin(CANDIDATE, RUN_KEY, wrong))
+			.hasMessageContaining("fixture user");
+	}
+
 	private static ReleaseControlProperties properties() {
 		ReleaseControlProperties properties = new ReleaseControlProperties();
 		properties.setEnabled(true);
@@ -235,6 +257,12 @@ class ReleaseControlServiceTest {
 	private static final class RecordingJourneyHooks implements ReleaseJourneyHooks {
 		String lastCommand;
 		String lastCheckpoint;
+		User lastLogin;
+
+		@Override
+		public void login(ReleaseRunState run, User user) {
+			lastLogin = user;
+		}
 
 		@Override
 		public void command(ReleaseRunState run, String command) {

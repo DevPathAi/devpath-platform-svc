@@ -20,6 +20,7 @@ class UserRegistrationServiceTest {
 	@Autowired UserRegistrationService service;
 	@Autowired UserOauthIdentityRepository identities;
 	@Autowired OutboxRepository outbox;
+	@Autowired ai.devpath.platform.user.UserRepository users;
 
 	@Test
 	void newIdentityCreatesUserProfileIdentityAndOutboxEvent() {
@@ -70,5 +71,20 @@ class UserRegistrationServiceTest {
 		long n = System.nanoTime();
 		assertThrows(MissingEmailException.class, () -> service.registerOrFind(
 				new OauthUser("GITHUB", "gh-" + n, null, "지수", "t")));
+	}
+
+	@Test
+	void releaseFixtureCreatesOnlyTheUserAndNeverAPersistentOauthIdentity() {
+		String email = "release-" + System.nanoTime() + "@staging.leva.invalid";
+		long identityCount = identities.count();
+		long outboxCount = outbox.count();
+
+		User created = service.registerOrFindRelease(email, "Release Fixture");
+		User replayed = service.registerOrFindRelease(email, "Release Fixture");
+
+		assertEquals(created.getId(), replayed.getId());
+		assertEquals(created.getId(), users.findByEmail(email).orElseThrow().getId());
+		assertEquals(identityCount, identities.count(), "release identity must not be durable");
+		assertEquals(outboxCount, outbox.count(), "release fixture must not publish signup events");
 	}
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,11 +14,11 @@ import ai.devpath.platform.beta.BetaStatusCookies;
 import ai.devpath.platform.beta.BetaStatusTokens;
 import ai.devpath.platform.config.AuthProperties;
 import ai.devpath.platform.config.BetaProperties;
+import ai.devpath.platform.release.ReleaseControlService;
 import ai.devpath.platform.user.User;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -40,9 +41,12 @@ class OAuth2ReleaseLoginSuccessHandlerTest {
 		auth.setWebUrl("https://app.leva.ai.kr");
 		OAuth2AuthorizedClientService authorizedClients = mock(OAuth2AuthorizedClientService.class);
 		BetaGate betaGate = mock(BetaGate.class);
+		ReleaseControlService releaseControl = mock(ReleaseControlService.class);
 		User user = mock(User.class);
 		when(user.getId()).thenReturn(17L);
-		when(registration.registerOrFind(any())).thenReturn(user);
+		when(user.getEmail()).thenReturn("release@example.test");
+		when(registration.registerOrFindRelease(
+			"release@example.test", "Release Fixture")).thenReturn(user);
 		when(betaGate.admit(user)).thenReturn(true);
 		when(refreshStore.issue(17L)).thenReturn("refresh-value");
 		when(cookies.create("refresh-value")).thenReturn(
@@ -86,17 +90,19 @@ class OAuth2ReleaseLoginSuccessHandlerTest {
 			betaGate,
 			mock(BetaProperties.class),
 			mock(BetaStatusTokens.class),
-			mock(BetaStatusCookies.class));
+			mock(BetaStatusCookies.class),
+			releaseControl);
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader("X-Candidate-Spec-Sha256", "a".repeat(64));
+		request.addHeader("X-Release-Run-Key", "R".repeat(43));
 		MockHttpServletResponse response = new MockHttpServletResponse();
 
-		handler.onAuthenticationSuccess(
-			new MockHttpServletRequest(), response, authentication);
+		handler.onAuthenticationSuccess(request, response, authentication);
 
-		ArgumentCaptor<UserRegistrationService.OauthUser> captured =
-			ArgumentCaptor.forClass(UserRegistrationService.OauthUser.class);
-		verify(registration).registerOrFind(captured.capture());
-		assertThat(captured.getValue().provider()).isEqualTo("RELEASE");
-		assertThat(captured.getValue().accessToken()).isNull();
+		verify(registration).registerOrFindRelease(
+			"release@example.test", "Release Fixture");
+		verify(registration, never()).registerOrFind(any());
+		verify(releaseControl).completeLogin("a".repeat(64), "R".repeat(43), user);
 		assertThat(response.getRedirectedUrl()).isEqualTo("https://app.leva.ai.kr/auth/callback");
 	}
 }
