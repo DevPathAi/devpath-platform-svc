@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -199,6 +200,18 @@ public class ReleaseControlService {
 			String journey) {
 		requireControlCredential(credential);
 		return requireRun(candidateSpecSha256, runKey, journey).analyticsEvents();
+	}
+
+	public void completeLogin(String candidateSpecSha256, String runKey,
+			ai.devpath.platform.user.User user) {
+		ReleaseRunState run = requireRun(candidateSpecSha256, runKey, null);
+		if (!run.oauthExchanged()) {
+			throw new ReleaseControlException("deterministic OAuth has not completed");
+		}
+		if (user == null || !Objects.equals(run.fixtureEmail(), user.getEmail())) {
+			throw new ReleaseControlException("release fixture user does not match the run");
+		}
+		hooks.login(run, user);
 	}
 
 	public Checkpoint checkpoint(

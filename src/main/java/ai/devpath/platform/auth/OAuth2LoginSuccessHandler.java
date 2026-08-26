@@ -4,6 +4,7 @@ import ai.devpath.platform.beta.BetaGate;
 import ai.devpath.platform.config.AuthProperties;
 import ai.devpath.platform.config.BetaProperties;
 import ai.devpath.platform.user.User;
+import ai.devpath.platform.release.ReleaseControlService;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,13 +32,15 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 	private final BetaProperties betaProps;
 	private final ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens;
 	private final ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies;
+	private final ReleaseControlService releaseControl;
 
 	public OAuth2LoginSuccessHandler(UserRegistrationService registration, RefreshTokenStore refreshStore,
 			RefreshCookies cookies, AuthProperties props,
 			OAuth2AuthorizedClientService authorizedClients, AuthCodeStore authCodeStore,
 			BetaGate betaGate, BetaProperties betaProps,
 			ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens,
-			ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies) {
+			ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies,
+			ReleaseControlService releaseControl) {
 		this.registration = registration;
 		this.refreshStore = refreshStore;
 		this.cookies = cookies;
@@ -48,6 +51,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		this.betaProps = betaProps;
 		this.betaStatusTokens = betaStatusTokens;
 		this.betaStatusCookies = betaStatusCookies;
+		this.releaseControl = releaseControl;
 	}
 
 	@Override
@@ -55,6 +59,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			Authentication authentication) throws IOException {
 		OAuth2AuthenticationToken token = (OAuth2AuthenticationToken) authentication;
 		String registrationId = token.getAuthorizedClientRegistrationId();
+		boolean releaseProvider = "release".equals(registrationId);
 		String provider = registrationId.toUpperCase();
 		Map<String, Object> attrs = token.getPrincipal().getAttributes();
 		String providerUserId = token.getPrincipal().getName();
@@ -69,12 +74,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 				? client.getAccessToken().getTokenValue() : null;
 		// The deterministic staging provider issues a one-time test credential. It is
 		// consumed by userinfo and must never be copied into the durable OAuth identity.
-		if ("release".equals(registrationId)) accessToken = null;
+		if (releaseProvider) accessToken = null;
 
 		User user;
 		try {
-			user = registration.registerOrFind(
-					new UserRegistrationService.OauthUser(provider, providerUserId, email, nickname, accessToken));
+			user = releaseProvider
+				? registration.registerOrFindRelease(email, nickname)
+				: registration.registerOrFind(new UserRegistrationService.OauthUser(
+					provider, providerUserId, email, nickname, accessToken));
 		} catch (MissingEmailException e) {
 			response.sendRedirect(props.getWebUrl() + "/login?error=email_required");
 			return;
@@ -87,6 +94,13 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			response.addHeader(HttpHeaders.SET_COOKIE, betaStatusCookies.create(statusToken).toString());
 			response.sendRedirect(props.getWebUrl() + betaProps.getPendingRedirect());
 			return;
+		}
+
+		if (releaseProvider) {
+			releaseControl.completeLogin(
+				request.getHeader("X-Candidate-Spec-Sha256"),
+				request.getHeader("X-Release-Run-Key"),
+				user);
 		}
 
 		// 모바일(PKCE) 플로우는 state 마커로 식별(MobileAwareAuthorizationRequestResolver가 부여).

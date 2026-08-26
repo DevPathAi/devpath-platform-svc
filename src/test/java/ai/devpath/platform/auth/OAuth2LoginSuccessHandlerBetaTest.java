@@ -58,7 +58,8 @@ class OAuth2LoginSuccessHandlerBetaTest {
     void setUp() throws Exception {
         handler = new OAuth2LoginSuccessHandler(
                 registration, refreshStore, cookies, props, authorizedClients, authCodeStore,
-                betaGate, betaProps, betaStatusTokens, betaStatusCookies);
+                betaGate, betaProps, betaStatusTokens, betaStatusCookies,
+                Mockito.mock(ai.devpath.platform.release.ReleaseControlService.class));
 
         long uniqueId = 99001L;
         String uniqueEmail = "octo@example.com";

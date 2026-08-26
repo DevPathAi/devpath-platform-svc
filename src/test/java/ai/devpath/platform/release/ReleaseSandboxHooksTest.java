@@ -177,6 +177,34 @@ class ReleaseSandboxHooksTest {
 		server.verify();
 	}
 
+	@Test
+	void workspaceLoginPreparesLearningBeforeOpeningTheOnboardedUserGate() {
+		ReleaseControlProperties properties = new ReleaseControlProperties();
+		properties.setLearningOrigin("http://devpath-learning:8080");
+		properties.setInternalToken("release-internal-token");
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		UserRepository users = org.mockito.Mockito.mock(UserRepository.class);
+		User user = org.mockito.Mockito.mock(User.class);
+		org.mockito.Mockito.when(user.getId()).thenReturn(42L);
+		ReleaseSandboxHooks hooks = new ReleaseSandboxHooks(properties, users, builder.build());
+
+		server.expect(requestTo("http://devpath-learning:8080/internal/release/learning/"
+				+ CANDIDATE + "/" + RUN_KEY + "/prepare"))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(header("X-DevPath-Internal-Token", "release-internal-token"))
+			.andExpect(jsonPath("$.user_id").value(42))
+			.andRespond(withSuccess("{\"accepted\":true}", MediaType.APPLICATION_JSON));
+
+		hooks.login(run(), user);
+
+		org.mockito.Mockito.verify(user).setConsentStatus("DONE");
+		org.mockito.Mockito.verify(user).setOnboardingStatus("DONE");
+		org.mockito.Mockito.verify(user).setBirthYear(2000);
+		org.mockito.Mockito.verify(users).save(user);
+		server.verify();
+	}
+
 	private static ReleaseRunState run() {
 		return new ReleaseRunState(
 			CANDIDATE,
