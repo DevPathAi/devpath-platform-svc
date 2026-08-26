@@ -55,16 +55,7 @@ public class UserRegistrationService {
 		if (byEmail.isPresent()) {
 			user = byEmail.get(); // 이메일 통합: 기존 User에 identity만 추가
 		} else {
-			user = new User();
-			user.setEmail(oauth.email());
-			user.setNickname(oauth.nickname());
-			user.setRole(isAdmin(oauth.email()) ? "ADMIN" : "LEARNER");
-			user.setStatus("ACTIVE");
-			user.setOnboardingStatus("PENDING");
-			user = users.save(user);
-			UserProfile profile = new UserProfile();
-			profile.setUserId(user.getId());
-			profiles.save(profile);
+			user = createUser(oauth.email(), oauth.nickname());
 		}
 
 		UserOauthIdentity identity = new UserOauthIdentity();
@@ -79,6 +70,27 @@ public class UserRegistrationService {
 		if (isNew) {
 			writeOutbox(user, oauth.provider());
 		}
+		return user;
+	}
+
+	/** Staging release identities are ephemeral and must never enter user_oauth_identities. */
+	@Transactional
+	public User registerOrFindRelease(String email, String nickname) {
+		if (email == null || email.isBlank()) throw new MissingEmailException("RELEASE");
+		return users.findByEmail(email).orElseGet(() -> createUser(email, nickname));
+	}
+
+	private User createUser(String email, String nickname) {
+		User user = new User();
+		user.setEmail(email);
+		user.setNickname(nickname);
+		user.setRole(isAdmin(email) ? "ADMIN" : "LEARNER");
+		user.setStatus("ACTIVE");
+		user.setOnboardingStatus("PENDING");
+		user = users.save(user);
+		UserProfile profile = new UserProfile();
+		profile.setUserId(user.getId());
+		profiles.save(profile);
 		return user;
 	}
 
