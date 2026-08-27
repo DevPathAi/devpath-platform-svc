@@ -208,11 +208,46 @@ class ReleaseSandboxHooksTest {
 		server.verify();
 	}
 
+	@Test
+	void onboardingLoginPreparesLearningWithoutSkippingConsent() {
+		ReleaseControlProperties properties = new ReleaseControlProperties();
+		properties.setLearningOrigin("http://devpath-learning:8080");
+		properties.setInternalToken("release-internal-token");
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		UserRepository users = org.mockito.Mockito.mock(UserRepository.class);
+		User user = org.mockito.Mockito.mock(User.class);
+		org.mockito.Mockito.when(user.getId()).thenReturn(42L);
+		ReleaseSandboxHooks hooks = new ReleaseSandboxHooks(properties, users, builder.build());
+
+		server.expect(requestTo("http://devpath-learning:8080/internal/release/learning/"
+				+ CANDIDATE + "/" + RUN_KEY + "/prepare"))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(header("X-DevPath-Internal-Token", "release-internal-token"))
+			.andExpect(jsonPath("$.user_id").value(42))
+			.andRespond(withSuccess("{\"accepted\":true}", MediaType.APPLICATION_JSON));
+
+		hooks.login(run("mission-spine-onboarding"), user);
+
+		org.mockito.Mockito.verify(user, org.mockito.Mockito.never()).setConsentStatus(
+			org.mockito.ArgumentMatchers.anyString());
+		org.mockito.Mockito.verify(user, org.mockito.Mockito.never()).setOnboardingStatus(
+			org.mockito.ArgumentMatchers.anyString());
+		org.mockito.Mockito.verify(user, org.mockito.Mockito.never()).setBirthYear(
+			org.mockito.ArgumentMatchers.anyInt());
+		org.mockito.Mockito.verify(users, org.mockito.Mockito.never()).save(user);
+		server.verify();
+	}
+
 	private static ReleaseRunState run() {
+		return run("mission-spine-workspace");
+	}
+
+	private static ReleaseRunState run(String journey) {
 		return new ReleaseRunState(
 			CANDIDATE,
 			RUN_KEY,
-			"mission-spine-workspace",
+			journey,
 			"f".repeat(40),
 			"release@example.test",
 			false,
