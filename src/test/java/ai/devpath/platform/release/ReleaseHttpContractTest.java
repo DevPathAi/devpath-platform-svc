@@ -50,7 +50,7 @@ class ReleaseHttpContractTest {
 		when(control.prepare("control-secret", CANDIDATE, JOURNEY))
 			.thenReturn(new ReleaseControlService.Prepared(RUN_KEY, "f".repeat(40)));
 		when(control.command("control-secret", CANDIDATE, RUN_KEY, JOURNEY,
-			"grant-analytics-permission"))
+			"grant-analytics-permission", Map.of()))
 			.thenReturn(new ReleaseControlService.CommandResult(true));
 		when(control.checkpoint("control-secret", CANDIDATE, RUN_KEY, JOURNEY,
 			"analytics-prepermission-zero"))
@@ -78,6 +78,9 @@ class ReleaseHttpContractTest {
 				.header(ReleaseHttp.RUN_HEADER, RUN_KEY))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.accepted").value(true));
+		verify(control).command(
+			"control-secret", CANDIDATE, RUN_KEY, JOURNEY,
+			"grant-analytics-permission", Map.of());
 
 		mvc.perform(get("/v1/release/journeys/{journey}/checkpoints/{checkpoint}",
 				JOURNEY, "analytics-prepermission-zero")
@@ -86,6 +89,28 @@ class ReleaseHttpContractTest {
 				.header(ReleaseHttp.RUN_HEADER, RUN_KEY))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.result").value("passed"));
+	}
+
+	@Test
+	void reviewFaultCommandForwardsThePriorSandboxSessionBinding() throws Exception {
+		when(control.command(
+			"control-secret", CANDIDATE, RUN_KEY, "mission-spine-workspace",
+			"fail-next-review", Map.of("prior_sandbox_session_id", 80)))
+			.thenReturn(new ReleaseControlService.CommandResult(true));
+
+		mvc.perform(post("/v1/release/journeys/{journey}/commands/{command}",
+				"mission-spine-workspace", "fail-next-review")
+				.header("Authorization", "Bearer control-secret")
+				.header(ReleaseHttp.CANDIDATE_HEADER, CANDIDATE)
+				.header(ReleaseHttp.RUN_HEADER, RUN_KEY)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"prior_sandbox_session_id\":80}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.accepted").value(true));
+
+		verify(control).command(
+			"control-secret", CANDIDATE, RUN_KEY, "mission-spine-workspace",
+			"fail-next-review", Map.of("prior_sandbox_session_id", 80));
 	}
 
 	@Test

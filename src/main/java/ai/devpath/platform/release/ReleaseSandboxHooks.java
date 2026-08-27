@@ -79,6 +79,16 @@ public class ReleaseSandboxHooks implements ReleaseJourneyHooks {
 
 	@Override
 	public void command(ReleaseRunState run, String command) {
+		command(run, command, Map.of());
+	}
+
+	@Override
+	public void command(
+			ReleaseRunState run, String command, Map<String, Object> commandData) {
+		Map<String, Object> data = commandData == null ? Map.of() : commandData;
+		if (!"fail-next-review".equals(command) && !data.isEmpty()) {
+			throw new ReleaseControlException("release command payload is not allowed");
+		}
 		if (COMMANDS.contains(command)) {
 			Map<String, Object> request = command.startsWith("seed-stale-")
 				? Map.of("user_id", fixtureUserId(run))
@@ -87,8 +97,20 @@ public class ReleaseSandboxHooks implements ReleaseJourneyHooks {
 			return;
 		}
 		if (AI_COMMANDS.contains(command)) {
-			postCommand(run, properties.getAiOrigin(), "ai", command,
-				Map.of("user_id", fixtureUserId(run)));
+			Map<String, Object> request;
+			if ("fail-next-review".equals(command)) {
+				Object priorSessionId = data.get("prior_sandbox_session_id");
+				if (data.size() != 1 || !(priorSessionId instanceof Long sessionId)
+						|| sessionId <= 0) {
+					throw new ReleaseControlException("prior sandbox session id is invalid");
+				}
+				request = Map.of(
+					"user_id", fixtureUserId(run),
+					"prior_sandbox_session_id", sessionId);
+			} else {
+				request = Map.of("user_id", fixtureUserId(run));
+			}
+			postCommand(run, properties.getAiOrigin(), "ai", command, request);
 			return;
 		}
 		if (LEARNING_COMMANDS.contains(command)) {
