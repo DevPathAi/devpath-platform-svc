@@ -226,6 +226,34 @@ class ReleaseControlServiceTest {
 	}
 
 	@Test
+	void reviewFaultRequiresAndForwardsTheExactPriorSandboxSessionBinding() {
+		RecordingJourneyHooks hooks = new RecordingJourneyHooks();
+		control = new ReleaseControlService(
+			properties(), state, fixtures, hooks, () -> RUN_KEY);
+		control.prepare(TOKEN, CANDIDATE, "mission-spine-workspace");
+
+		assertThatThrownBy(() -> control.command(
+			TOKEN, CANDIDATE, RUN_KEY, "mission-spine-workspace", "fail-next-review"))
+			.hasMessageContaining("prior sandbox session");
+		assertThatThrownBy(() -> control.command(
+			TOKEN, CANDIDATE, RUN_KEY, "mission-spine-workspace", "fail-next-review",
+			Map.of("prior_sandbox_session_id", 0L)))
+			.hasMessageContaining("prior sandbox session");
+		assertThatThrownBy(() -> control.command(
+			TOKEN, CANDIDATE, RUN_KEY, "mission-spine-workspace", "next-run-timeout",
+			Map.of("prior_sandbox_session_id", 80L)))
+			.hasMessageContaining("payload");
+
+		control.command(
+			TOKEN, CANDIDATE, RUN_KEY, "mission-spine-workspace", "fail-next-review",
+			Map.of("prior_sandbox_session_id", 80L));
+
+		assertThat(hooks.lastCommand).isEqualTo("fail-next-review");
+		assertThat(hooks.lastCommandData)
+			.isEqualTo(Map.of("prior_sandbox_session_id", 80L));
+	}
+
+	@Test
 	void releaseLoginRequiresTheExactFixtureUserAndInvokesTheJourneyHook() {
 		RecordingJourneyHooks hooks = new RecordingJourneyHooks();
 		control = new ReleaseControlService(properties(), state, fixtures, hooks, () -> RUN_KEY);
@@ -256,6 +284,7 @@ class ReleaseControlServiceTest {
 
 	private static final class RecordingJourneyHooks implements ReleaseJourneyHooks {
 		String lastCommand;
+		Map<String, Object> lastCommandData;
 		String lastCheckpoint;
 		User lastLogin;
 
@@ -267,6 +296,13 @@ class ReleaseControlServiceTest {
 		@Override
 		public void command(ReleaseRunState run, String command) {
 			lastCommand = command;
+		}
+
+		@Override
+		public void command(
+				ReleaseRunState run, String command, Map<String, Object> commandData) {
+			lastCommand = command;
+			lastCommandData = commandData;
 		}
 
 		@Override
