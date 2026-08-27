@@ -127,9 +127,11 @@ public class ReleaseSandboxHooks implements ReleaseJourneyHooks {
 
 	@Override
 	public void login(ReleaseRunState run, ai.devpath.platform.user.User user) {
-		if (!"mission-spine-workspace".equals(run.journey())) return;
+		if (!Set.of("mission-spine-onboarding", "mission-spine-workspace")
+				.contains(run.journey())) return;
 		postEndpoint(run, properties.getLearningOrigin(), "learning", "/prepare",
 			Map.of("user_id", user.getId()));
+		if (!"mission-spine-workspace".equals(run.journey())) return;
 		user.setConsentStatus("DONE");
 		user.setOnboardingStatus("DONE");
 		user.setBirthYear(2000);
