@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.user.UserRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,7 @@ class ReleaseSandboxHooksTest {
 			.andExpect(method(HttpMethod.POST))
 			.andExpect(header("X-DevPath-Internal-Token", "release-internal-token"))
 			.andExpect(jsonPath("$.user_id").value(42))
+			.andExpect(jsonPath("$.prior_sandbox_session_id").value(80))
 			.andRespond(withSuccess("{\"accepted\":true}", MediaType.APPLICATION_JSON));
 		server.expect(requestTo("http://devpath-ai:8080/internal/release/ai/"
 				+ CANDIDATE + "/" + RUN_KEY
@@ -98,7 +100,8 @@ class ReleaseSandboxHooksTest {
 			.andExpect(method(HttpMethod.GET))
 			.andRespond(withSuccess("{\"passed\":true}", MediaType.APPLICATION_JSON));
 
-		hooks.command(run(), "fail-next-review");
+		hooks.command(run(), "fail-next-review",
+			Map.of("prior_sandbox_session_id", 80L));
 		assertThat(hooks.checkpoint(run(), "kafka-outbox-review-correlated")).isTrue();
 		server.verify();
 	}
