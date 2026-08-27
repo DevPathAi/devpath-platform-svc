@@ -1,5 +1,6 @@
 package ai.devpath.platform.release;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -23,6 +24,7 @@ public class ReleaseControlService {
 	private static final Pattern SHA256 = Pattern.compile("^[0-9a-f]{64}$");
 	private static final Pattern RUN_KEY = Pattern.compile("^[A-Za-z0-9_-]{22,128}$");
 	private static final Pattern REVISION = Pattern.compile("^[0-9a-f]{40}$");
+	private static final long MAX_SAFE_INTEGER = 9_007_199_254_740_991L;
 	private static final Set<String> JOURNEYS = Set.of(
 		"mission-spine-onboarding",
 		"mission-spine-workspace");
@@ -140,6 +142,17 @@ public class ReleaseControlService {
 			String runKey,
 			String journey,
 			String command) {
+		return command(
+			credential, candidateSpecSha256, runKey, journey, command, Map.of());
+	}
+
+	public CommandResult command(
+			String credential,
+			String candidateSpecSha256,
+			String runKey,
+			String journey,
+			String command,
+			Map<String, Object> commandData) {
 		requireControlCredential(credential);
 		ReleaseRunState run = requireRun(candidateSpecSha256, runKey, journey);
 		if (!COMMANDS.get(journey).contains(command)) {
@@ -148,12 +161,36 @@ public class ReleaseControlService {
 		if ("replay-oauth-callback".equals(command) && !run.oauthExchanged()) {
 			throw new ReleaseControlException("deterministic OAuth has not completed");
 		}
-		hooks.command(run, command);
+		Map<String, Object> normalizedData = requireCommandData(command, commandData);
+		hooks.command(run, command, normalizedData);
 		ReleaseRunState updated = "grant-analytics-permission".equals(command)
 			? run.withAnalyticsPermission().withCommand(command)
 			: run.withCommand(command);
 		state.saveRun(updated, properties.getRunTtl());
 		return new CommandResult(true);
+	}
+
+	private static Map<String, Object> requireCommandData(
+			String command, Map<String, Object> commandData) {
+		Map<String, Object> data = commandData == null ? Map.of() : commandData;
+		if (!"fail-next-review".equals(command)) {
+			if (!data.isEmpty()) {
+				throw new ReleaseControlException("release command payload is not allowed");
+			}
+			return Map.of();
+		}
+		if (data.size() != 1 || !data.containsKey("prior_sandbox_session_id")) {
+			throw new ReleaseControlException("prior sandbox session id is required");
+		}
+		Object rawSessionId = data.get("prior_sandbox_session_id");
+		try {
+			if (!(rawSessionId instanceof Number number)) throw new ArithmeticException();
+			long sessionId = new BigDecimal(number.toString()).longValueExact();
+			if (sessionId <= 0 || sessionId > MAX_SAFE_INTEGER) throw new ArithmeticException();
+			return Map.of("prior_sandbox_session_id", sessionId);
+		} catch (ArithmeticException | NumberFormatException invalid) {
+			throw new ReleaseControlException("prior sandbox session id is invalid");
+		}
 	}
 
 	public Permission analyticsPermission(String candidateSpecSha256, String runKey) {

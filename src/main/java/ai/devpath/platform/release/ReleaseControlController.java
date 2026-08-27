@@ -4,6 +4,7 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,9 +46,11 @@ public class ReleaseControlController {
 			@RequestHeader(ReleaseHttp.CANDIDATE_HEADER) String candidate,
 			@RequestHeader(ReleaseHttp.RUN_HEADER) String runKey,
 			@PathVariable String journey,
-			@PathVariable String command) {
+			@PathVariable String command,
+			@RequestBody(required = false) Map<String, Object> body) {
 		var value = control.command(
-			ReleaseHttp.bearer(authorization), candidate, runKey, journey, command);
+			ReleaseHttp.bearer(authorization), candidate, runKey, journey, command,
+			body == null ? Map.of() : body);
 		return ReleaseHttp.pinned(candidate, "accepted", value.accepted());
 	}
 
