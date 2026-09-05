@@ -105,6 +105,20 @@ public class SecurityConfig {
 		release.setMaxAge(300L);
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/v1/release/browser/**", release);
+
+		CorsConfiguration publicSupport = new CorsConfiguration();
+		publicSupport.setAllowedOrigins(java.util.List.of(
+			"https://leva.ai.kr",
+			"http://localhost:4321",
+			"http://127.0.0.1:4321"));
+		publicSupport.setAllowedMethods(java.util.List.of(
+			HttpMethod.POST.name(), HttpMethod.OPTIONS.name()));
+		publicSupport.setAllowedHeaders(java.util.List.of(
+			HttpHeaders.ACCEPT,
+			HttpHeaders.CONTENT_TYPE));
+		publicSupport.setAllowCredentials(false);
+		publicSupport.setMaxAge(300L);
+		source.registerCorsConfiguration("/support/public-requests", publicSupport);
 		return source;
 	}
 
@@ -119,6 +133,7 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.disable())
 			.authorizeHttpRequests(authorize -> authorize
 				.requestMatchers("/oauth2/**", "/login/**", "/auth/refresh", "/auth/logout", "/auth/oauth/token", "/actuator/health", "/actuator/health/**", "/beta/status").permitAll()
+				.requestMatchers(HttpMethod.POST, "/support/public-requests").permitAll()
 				.requestMatchers("/admin/**").hasRole("ADMIN")
 				.anyRequest().authenticated())
 			.oauth2Login(oauth -> oauth

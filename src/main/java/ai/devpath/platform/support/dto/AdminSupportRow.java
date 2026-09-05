@@ -8,5 +8,7 @@ public record AdminSupportRow(
     String status,
     String pagePath,
     Long reporterId,
+    String source,
+    String contactEmail,
     long failureCount,
     String createdAt) {}

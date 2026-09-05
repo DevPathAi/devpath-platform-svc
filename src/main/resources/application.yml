@@ -76,6 +76,16 @@ devpath:
     admin-emails: ${BETA_ADMIN_EMAILS:}
     notify-email: ${BETA_NOTIFY_EMAIL:}
     pending-redirect: ${BETA_PENDING_REDIRECT:/beta-pending}
+  public-support:
+    turnstile-secret: ${TURNSTILE_SECRET:test-turnstile-secret-not-for-production}
+    turnstile-verify-url: ${TURNSTILE_VERIFY_URL:https://challenges.cloudflare.com/turnstile/v0/siteverify}
+    turnstile-action: public_support
+    turnstile-hostnames: ${TURNSTILE_HOSTNAMES:leva.ai.kr,localhost,127.0.0.1}
+    verification-timeout: ${TURNSTILE_VERIFICATION_TIMEOUT:PT5S}
+    rate-limit-hmac-secret: ${PUBLIC_SUPPORT_RATE_LIMIT_HMAC_SECRET:test-rate-limit-secret-32-bytes-000}
+    rate-limit-window: ${PUBLIC_SUPPORT_RATE_LIMIT_WINDOW:PT1H}
+    rate-limit-per-ip: ${PUBLIC_SUPPORT_RATE_LIMIT_PER_IP:10}
+    rate-limit-per-email: ${PUBLIC_SUPPORT_RATE_LIMIT_PER_EMAIL:5}
   release:
     enabled: ${MISSION_RELEASE_CONTROL_ENABLED:false}
     control-token: ${MISSION_RELEASE_CONTROL_TOKEN:}

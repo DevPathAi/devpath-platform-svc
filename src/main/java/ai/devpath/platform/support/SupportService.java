@@ -45,26 +45,10 @@ public class SupportService {
 
   @Transactional
   public SupportRequest create(long reporterId, SupportCreateRequest req) {
-    String type = req.type();
-    if (!"ERROR".equals(type) && !"INQUIRY".equals(type)) {
-      throw new IllegalArgumentException("type must be ERROR or INQUIRY");
-    }
-    String title = req.title() == null ? "" : req.title().trim();
-    String body = req.body() == null ? "" : req.body().trim();
-    if (title.isEmpty() || title.length() > TITLE_MAX) {
-      throw new IllegalArgumentException("title must be 1-" + TITLE_MAX + " characters");
-    }
-    if (body.isEmpty() || body.length() > BODY_MAX) {
-      throw new IllegalArgumentException("body must be 1-" + BODY_MAX + " characters");
-    }
-
     SupportCreateRequest.Context ctx = req.context();
-    SupportRequest saved = new SupportRequest();
+    SupportRequest saved = newRequest(req.type(), req.title(), req.body());
     saved.setReporterId(reporterId);
-    saved.setType(type);
-    saved.setTitle(SensitiveTextMasker.mask(title));
-    saved.setBody(SensitiveTextMasker.mask(body));
-    saved.setStatus("OPEN");
+    saved.setSource("AUTHENTICATED_APP");
     if (ctx != null) {
       saved.setPagePath(cut(SensitiveTextMasker.mask(stripQuery(ctx.pagePath())), PATH_MAX));
       saved.setAppVersion(cut(ctx.appVersion(), VERSION_MAX));
@@ -97,6 +81,45 @@ public class SupportService {
       }
     }
     return saved;
+  }
+
+  /** 공개 Home 접수. remote IP와 Turnstile token은 이 저장 경계로 전달하지 않는다. */
+  @Transactional
+  public SupportRequest createPublic(
+      String contactEmail,
+      String type,
+      String title,
+      String body,
+      Instant privacyConsentAt) {
+    if (contactEmail == null || contactEmail.isBlank() || privacyConsentAt == null) {
+      throw new IllegalArgumentException("public support contact and consent are required");
+    }
+    SupportRequest saved = newRequest(type, title, body);
+    saved.setReporterId(null);
+    saved.setSource("PUBLIC_HOME");
+    saved.setContactEmail(contactEmail);
+    saved.setPrivacyConsentAt(privacyConsentAt);
+    return requests.save(saved);
+  }
+
+  private static SupportRequest newRequest(String type, String rawTitle, String rawBody) {
+    if (!"ERROR".equals(type) && !"INQUIRY".equals(type)) {
+      throw new IllegalArgumentException("type must be ERROR or INQUIRY");
+    }
+    String title = rawTitle == null ? "" : rawTitle.trim();
+    String body = rawBody == null ? "" : rawBody.trim();
+    if (title.isEmpty() || title.length() > TITLE_MAX) {
+      throw new IllegalArgumentException("title must be 1-" + TITLE_MAX + " characters");
+    }
+    if (body.isEmpty() || body.length() > BODY_MAX) {
+      throw new IllegalArgumentException("body must be 1-" + BODY_MAX + " characters");
+    }
+    SupportRequest request = new SupportRequest();
+    request.setType(type);
+    request.setTitle(SensitiveTextMasker.mask(title));
+    request.setBody(SensitiveTextMasker.mask(body));
+    request.setStatus("OPEN");
+    return request;
   }
 
   /** 쿼리스트링 제거 — 클라가 이미 빼지만 서버도 보장한다. */
@@ -149,7 +172,8 @@ public class SupportService {
     List<AdminSupportRow> data = rows.stream()
         .map(r -> new AdminSupportRow(
             r.getId(), r.getType(), r.getTitle(), r.getStatus(), r.getPagePath(),
-            r.getReporterId(), failures.countByRequestId(r.getId()), iso(r.getCreatedAt())))
+            r.getReporterId(), r.getSource(), r.getContactEmail(),
+            failures.countByRequestId(r.getId()), iso(r.getCreatedAt())))
         .toList();
     return new AdminSupportPage(data, nextCursor, size);
   }
@@ -197,7 +221,8 @@ public class SupportService {
     return new AdminSupportDetail(
         r.getId(), r.getType(), r.getTitle(), r.getBody(), r.getStatus(), r.getPagePath(),
         r.getAppVersion(), r.getUserAgent(), r.getViewport(), r.getTraceId(), r.getErrorCode(),
-        iso(r.getOccurredAt()), r.getReporterId(), r.getAdminNote(), r.getHandledBy(),
+        iso(r.getOccurredAt()), r.getReporterId(), r.getSource(), r.getContactEmail(),
+        iso(r.getPrivacyConsentAt()), r.getAdminNote(), r.getHandledBy(),
         iso(r.getHandledAt()), iso(r.getCreatedAt()), rows);
   }
 

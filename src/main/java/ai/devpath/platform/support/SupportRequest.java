@@ -19,6 +19,15 @@ public class SupportRequest {
   @Column(name = "reporter_id")
   private Long reporterId;
 
+  /** AUTHENTICATED_APP | PUBLIC_HOME */
+  private String source = "AUTHENTICATED_APP";
+
+  @Column(name = "contact_email")
+  private String contactEmail;
+
+  @Column(name = "privacy_consent_at")
+  private Instant privacyConsentAt;
+
   /** ERROR | INQUIRY */
   private String type;
 
@@ -63,6 +72,12 @@ public class SupportRequest {
   public Long getId() { return id; }
   public Long getReporterId() { return reporterId; }
   public void setReporterId(Long v) { this.reporterId = v; }
+  public String getSource() { return source; }
+  public void setSource(String v) { this.source = v; }
+  public String getContactEmail() { return contactEmail; }
+  public void setContactEmail(String v) { this.contactEmail = v; }
+  public Instant getPrivacyConsentAt() { return privacyConsentAt; }
+  public void setPrivacyConsentAt(Instant v) { this.privacyConsentAt = v; }
   public String getType() { return type; }
   public void setType(String v) { this.type = v; }
   public String getTitle() { return title; }
