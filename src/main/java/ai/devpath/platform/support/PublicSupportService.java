@@ -12,6 +12,7 @@ public class PublicSupportService {
   private static final int EMAIL_MAX = 254;
   private static final int TITLE_MAX = 200;
   private static final int BODY_MAX = 5000;
+  private static final int TURNSTILE_TOKEN_MAX = 2048;
 
   private final TurnstileVerifier turnstile;
   private final PublicSupportRateLimiter rateLimiter;
@@ -57,7 +58,10 @@ public class PublicSupportService {
     if (body.isEmpty() || body.length() > BODY_MAX) {
       throw new IllegalArgumentException("body must be 1-" + BODY_MAX + " characters");
     }
-    if (token.isEmpty()) throw new IllegalArgumentException("turnstileToken is required");
+    if (token.isEmpty() || token.length() > TURNSTILE_TOKEN_MAX) {
+      throw new IllegalArgumentException(
+          "turnstileToken must be 1-" + TURNSTILE_TOKEN_MAX + " characters");
+    }
 
     boolean verified;
     try {

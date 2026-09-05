@@ -99,6 +99,29 @@ class PublicSupportServiceTest {
   }
 
   @Test
+  void rejectsTurnstileTokenLongerThan2048CharactersBeforeExternalChecks() {
+    PublicSupportCreateRequest bad = withTurnstileToken("t".repeat(2049));
+
+    assertThatThrownBy(() -> service.create(bad, "203.0.113.10"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("1-2048");
+    verify(turnstile, never()).verify(any(), any());
+    verify(rateLimiter, never()).allow(any(), any());
+    verify(support, never()).createPublic(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void acceptsTurnstileTokenAt2048CharacterBoundary() {
+    String token = "t".repeat(2048);
+    when(turnstile.verify(token, "203.0.113.10")).thenReturn(true);
+    when(rateLimiter.allow("203.0.113.10", "person@example.com")).thenReturn(true);
+
+    service.create(withTurnstileToken(token), "203.0.113.10");
+
+    verify(turnstile).verify(token, "203.0.113.10");
+  }
+
+  @Test
   void neverCopiesRawIpOrTurnstileTokenIntoPersistenceArguments() {
     when(turnstile.verify(any(), any())).thenReturn(true);
     when(rateLimiter.allow(any(), any())).thenReturn(true);
@@ -120,5 +143,15 @@ class PublicSupportServiceTest {
         "person@example.com의 토큰 token=secret",
         true,
         "token-value");
+  }
+
+  private static PublicSupportCreateRequest withTurnstileToken(String token) {
+    return new PublicSupportCreateRequest(
+        "INQUIRY",
+        "person@example.com",
+        "문의",
+        "문의 내용",
+        true,
+        token);
   }
 }
