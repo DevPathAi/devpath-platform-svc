@@ -1,8 +1,7 @@
 package ai.devpath.platform.auth;
 
-import ai.devpath.platform.beta.BetaGate;
 import ai.devpath.platform.config.AuthProperties;
-import ai.devpath.platform.config.BetaProperties;
+import ai.devpath.platform.mentor.MentorAccessService;
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.release.ReleaseControlService;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
@@ -28,18 +27,13 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 	private final AuthProperties props;
 	private final OAuth2AuthorizedClientService authorizedClients;
 	private final AuthCodeStore authCodeStore;
-	private final BetaGate betaGate;
-	private final BetaProperties betaProps;
-	private final ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens;
-	private final ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies;
+	private final MentorAccessService mentorAccess;
 	private final ReleaseControlService releaseControl;
 
 	public OAuth2LoginSuccessHandler(UserRegistrationService registration, RefreshTokenStore refreshStore,
 			RefreshCookies cookies, AuthProperties props,
 			OAuth2AuthorizedClientService authorizedClients, AuthCodeStore authCodeStore,
-			BetaGate betaGate, BetaProperties betaProps,
-			ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens,
-			ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies,
+			MentorAccessService mentorAccess,
 			ReleaseControlService releaseControl) {
 		this.registration = registration;
 		this.refreshStore = refreshStore;
@@ -47,10 +41,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 		this.props = props;
 		this.authorizedClients = authorizedClients;
 		this.authCodeStore = authCodeStore;
-		this.betaGate = betaGate;
-		this.betaProps = betaProps;
-		this.betaStatusTokens = betaStatusTokens;
-		this.betaStatusCookies = betaStatusCookies;
+		this.mentorAccess = mentorAccess;
 		this.releaseControl = releaseControl;
 	}
 
@@ -87,14 +78,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			return;
 		}
 
-		// 베타 게이팅: 허용 목록에 없는 사용자는 실 토큰·쿠키 없이 대기 페이지로 리다이렉트하되,
-		// 승인여부 폴링을 위한 단명 조회 쿠키(beta_status)만 발급한다.
-		if (!betaGate.admit(user)) {
-			String statusToken = betaStatusTokens.issue(user.getId());
-			response.addHeader(HttpHeaders.SET_COOKIE, betaStatusCookies.create(statusToken).toString());
-			response.sendRedirect(props.getWebUrl() + betaProps.getPendingRedirect());
-			return;
-		}
+		// 일반 계정은 항상 앱에 들어간다. AI 멘토만 별도 접근 상태로 잠근다.
+		mentorAccess.ensureForLogin(user);
 
 		if (releaseProvider) {
 			releaseControl.completeLogin(

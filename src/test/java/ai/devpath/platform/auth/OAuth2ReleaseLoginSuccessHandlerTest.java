@@ -9,11 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
-import ai.devpath.platform.beta.BetaGate;
-import ai.devpath.platform.beta.BetaStatusCookies;
-import ai.devpath.platform.beta.BetaStatusTokens;
 import ai.devpath.platform.config.AuthProperties;
-import ai.devpath.platform.config.BetaProperties;
+import ai.devpath.platform.mentor.MentorAccessService;
 import ai.devpath.platform.release.ReleaseControlService;
 import ai.devpath.platform.user.User;
 import java.time.Instant;
@@ -40,14 +37,13 @@ class OAuth2ReleaseLoginSuccessHandlerTest {
 		AuthProperties auth = new AuthProperties();
 		auth.setWebUrl("https://app.leva.ai.kr");
 		OAuth2AuthorizedClientService authorizedClients = mock(OAuth2AuthorizedClientService.class);
-		BetaGate betaGate = mock(BetaGate.class);
+		MentorAccessService mentorAccess = mock(MentorAccessService.class);
 		ReleaseControlService releaseControl = mock(ReleaseControlService.class);
 		User user = mock(User.class);
 		when(user.getId()).thenReturn(17L);
 		when(user.getEmail()).thenReturn("release@example.test");
 		when(registration.registerOrFindRelease(
 			"release@example.test", "Release Fixture")).thenReturn(user);
-		when(betaGate.admit(user)).thenReturn(true);
 		when(refreshStore.issue(17L)).thenReturn("refresh-value");
 		when(cookies.create("refresh-value")).thenReturn(
 			ResponseCookie.from("refresh_token", "refresh-value").httpOnly(true).build());
@@ -87,10 +83,7 @@ class OAuth2ReleaseLoginSuccessHandlerTest {
 			auth,
 			authorizedClients,
 			mock(AuthCodeStore.class),
-			betaGate,
-			mock(BetaProperties.class),
-			mock(BetaStatusTokens.class),
-			mock(BetaStatusCookies.class),
+			mentorAccess,
 			releaseControl);
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		request.addHeader("X-Candidate-Spec-Sha256", "a".repeat(64));

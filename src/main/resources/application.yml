@@ -86,6 +86,13 @@ devpath:
     rate-limit-window: ${PUBLIC_SUPPORT_RATE_LIMIT_WINDOW:PT1H}
     rate-limit-per-ip: ${PUBLIC_SUPPORT_RATE_LIMIT_PER_IP:10}
     rate-limit-per-email: ${PUBLIC_SUPPORT_RATE_LIMIT_PER_EMAIL:5}
+  mentor-access:
+    invite-code-hmac-secret: ${MENTOR_INVITE_CODE_HMAC_SECRET:test-invite-code-hmac-secret-32-bytes}
+    batch-enabled: ${MENTOR_INVITE_BATCH_ENABLED:false}
+    batch-cron: ${MENTOR_INVITE_BATCH_CRON:0 0 10 * * *}
+    batch-zone: ${MENTOR_INVITE_BATCH_ZONE:Asia/Seoul}
+    batch-chunk-size: ${MENTOR_INVITE_BATCH_CHUNK_SIZE:25}
+    batch-daily-cap: ${MENTOR_INVITE_BATCH_DAILY_CAP:100}
   release:
     enabled: ${MISSION_RELEASE_CONTROL_ENABLED:false}
     control-token: ${MISSION_RELEASE_CONTROL_TOKEN:}

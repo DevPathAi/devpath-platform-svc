@@ -26,7 +26,7 @@ class JwtServiceTest {
 	@Test
 	void mintsDecodableAccessTokenWithSubjectAndRole() {
 		JwtService svc = newService();
-		String token = svc.mintAccessToken(42L, "LEARNER");
+		String token = svc.mintAccessToken(42L, "LEARNER", "WAITLISTED");
 
 		AuthProperties props = new AuthProperties();
 		props.setJwtSecret("test-secret-please-change-min-32-bytes-long-0123456789");
@@ -36,6 +36,7 @@ class JwtServiceTest {
 
 		assertEquals("42", jwt.getSubject());
 		assertEquals("LEARNER", jwt.getClaimAsString("role"));
+		assertEquals("WAITLISTED", jwt.getClaimAsString("mentor_access"));
 		assertTrue(jwt.getExpiresAt().isAfter(Instant.now()));
 	}
 }

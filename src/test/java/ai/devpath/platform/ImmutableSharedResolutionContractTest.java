@@ -11,9 +11,9 @@ import org.junit.jupiter.api.Test;
 
 class ImmutableSharedResolutionContractTest {
 
-  private static final String VERSION = "0.0.1-rh.20260905";
+  private static final String VERSION = "0.0.1-rm.20260905";
   private static final String SHA_256 =
-      "76270f3a101d765926798e0084b7e72cd4b708fbb149fee30426c7197afde7ab";
+      "991bef2e55b0e6fa3202e66e36e9b0c915037a629d8c51e82459e0e368325559";
 
   @Test
   void resolvesTheExactImmutableSharedReleaseWithoutCompositeSubstitution() throws Exception {

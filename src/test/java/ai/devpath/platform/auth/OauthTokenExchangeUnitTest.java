@@ -13,6 +13,8 @@ import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import ai.devpath.platform.config.AuthProperties;
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.user.UserRepository;
+import ai.devpath.platform.mentor.MentorAccess;
+import ai.devpath.platform.mentor.MentorAccessService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,7 @@ class OauthTokenExchangeUnitTest {
 	private UserRepository users;
 	private AuthCodeStore codes;
 	private AuthController controller;
+	private MentorAccessService mentorAccess;
 
 	@BeforeEach
 	void setUp() {
@@ -40,7 +43,9 @@ class OauthTokenExchangeUnitTest {
 		jwt = mock(JwtService.class);
 		users = mock(UserRepository.class);
 		codes = mock(AuthCodeStore.class);
-		controller = new AuthController(store, jwt, new RefreshCookies(new AuthProperties()), users, codes);
+		mentorAccess = mock(MentorAccessService.class);
+		controller = new AuthController(store, jwt, new RefreshCookies(new AuthProperties()), users, codes,
+			mentorAccess);
 
 		User u = mock(User.class);
 		when(u.getId()).thenReturn(7L);
@@ -49,7 +54,8 @@ class OauthTokenExchangeUnitTest {
 		when(u.getNickname()).thenReturn("지수");
 		when(u.getOnboardingStatus()).thenReturn("DONE");
 		when(users.findById(7L)).thenReturn(Optional.of(u));
-		when(jwt.mintAccessToken(7L, "LEARNER")).thenReturn("acc");
+		when(mentorAccess.ensureForLogin(u)).thenReturn(MentorAccess.active(7L, "INVITE_CODE"));
+		when(jwt.mintAccessToken(7L, "LEARNER", "ACTIVE")).thenReturn("acc");
 		when(store.issue(7L)).thenReturn("refresh-new");
 	}
 

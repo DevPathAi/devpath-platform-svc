@@ -14,6 +14,8 @@ import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import ai.devpath.platform.config.AuthProperties;
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.user.UserRepository;
+import ai.devpath.platform.mentor.MentorAccess;
+import ai.devpath.platform.mentor.MentorAccessService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,14 +32,17 @@ class AuthControllerRefreshUnitTest {
 	private JwtService jwt;
 	private UserRepository users;
 	private AuthController controller;
+	private MentorAccessService mentorAccess;
 
 	@BeforeEach
 	void setUp() {
 		store = mock(RefreshTokenStore.class);
 		jwt = mock(JwtService.class);
 		users = mock(UserRepository.class);
+		mentorAccess = mock(MentorAccessService.class);
 		AuthProperties props = new AuthProperties();
-		controller = new AuthController(store, jwt, new RefreshCookies(props), users, mock(AuthCodeStore.class));
+		controller = new AuthController(store, jwt, new RefreshCookies(props), users,
+			mock(AuthCodeStore.class), mentorAccess);
 
 		User u = mock(User.class);
 		when(u.getId()).thenReturn(7L);
@@ -46,7 +51,8 @@ class AuthControllerRefreshUnitTest {
 		when(u.getNickname()).thenReturn("지수");
 		when(u.getOnboardingStatus()).thenReturn("DONE");
 		when(users.findById(7L)).thenReturn(Optional.of(u));
-		when(jwt.mintAccessToken(7L, "LEARNER")).thenReturn("acc");
+		when(mentorAccess.ensureForLogin(u)).thenReturn(MentorAccess.active(7L, "BATCH"));
+		when(jwt.mintAccessToken(7L, "LEARNER", "ACTIVE")).thenReturn("acc");
 	}
 
 	@Test

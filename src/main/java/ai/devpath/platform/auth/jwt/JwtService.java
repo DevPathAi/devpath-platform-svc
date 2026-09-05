@@ -21,12 +21,17 @@ public class JwtService {
 	}
 
 	public String mintAccessToken(long userId, String role) {
+		return mintAccessToken(userId, role, "ACTIVE");
+	}
+
+	public String mintAccessToken(long userId, String role, String mentorAccess) {
 		Instant now = Instant.now();
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 				.subject(String.valueOf(userId))
 				.issuedAt(now)
 				.expiresAt(now.plus(props.getAccessTtl()))
 				.claim("role", role)
+				.claim("mentor_access", mentorAccess)
 				.build();
 		JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 		return encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

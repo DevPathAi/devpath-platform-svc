@@ -10,9 +10,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import ai.devpath.platform.beta.BetaGate;
 import ai.devpath.platform.config.AuthProperties;
-import ai.devpath.platform.config.BetaProperties;
+import ai.devpath.platform.mentor.MentorAccessService;
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import java.time.Instant;
@@ -45,10 +44,7 @@ class OAuth2LoginSuccessHandlerBetaTest {
     @Mock AuthProperties props;
     @Mock OAuth2AuthorizedClientService authorizedClients;
     @Mock AuthCodeStore authCodeStore;
-    @Mock BetaGate betaGate;
-    @Mock BetaProperties betaProps;
-    @Mock ai.devpath.platform.beta.BetaStatusTokens betaStatusTokens;
-    @Mock ai.devpath.platform.beta.BetaStatusCookies betaStatusCookies;
+    @Mock MentorAccessService mentorAccess;
 
     OAuth2LoginSuccessHandler handler;
     OAuth2AuthenticationToken authentication;
@@ -58,7 +54,7 @@ class OAuth2LoginSuccessHandlerBetaTest {
     void setUp() throws Exception {
         handler = new OAuth2LoginSuccessHandler(
                 registration, refreshStore, cookies, props, authorizedClients, authCodeStore,
-                betaGate, betaProps, betaStatusTokens, betaStatusCookies,
+                mentorAccess,
                 Mockito.mock(ai.devpath.platform.release.ReleaseControlService.class));
 
         long uniqueId = 99001L;
@@ -99,29 +95,25 @@ class OAuth2LoginSuccessHandlerBetaTest {
     }
 
     @Test
-    void unlistedUser_setsBetaStatusCookie_redirectsToBetaPending() throws Exception {
-        when(betaGate.admit(any())).thenReturn(false);
-        when(betaProps.getPendingRedirect()).thenReturn("/beta-pending");
-        when(betaStatusTokens.issue(anyLong())).thenReturn("st");
-        when(betaStatusCookies.create("st")).thenReturn(
-                ResponseCookie.from("beta_status", "st").httpOnly(true).path("/").build());
+    void unlistedUserGetsGeneralSessionWhileMentorAccessIsInitialized() throws Exception {
+        when(refreshStore.issue(anyLong())).thenReturn("rt");
+        when(cookies.create("rt")).thenReturn(
+                ResponseCookie.from("refresh_token", "rt").httpOnly(true).path("/").build());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         handler.onAuthenticationSuccess(request, response, authentication);
 
-        // beta_status 쿠키 발급 + /beta-pending 리다이렉트, refresh 미발급.
         String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
-        assertNotNull(setCookie, "beta_status 쿠키 설정돼야 함");
-        org.junit.jupiter.api.Assertions.assertTrue(setCookie.contains("beta_status"), "beta_status 쿠키명");
-        verifyNoInteractions(refreshStore);
-        assertEquals("https://app.example/beta-pending", response.getRedirectedUrl());
+        assertNotNull(setCookie, "refresh 쿠키 설정돼야 함");
+        org.junit.jupiter.api.Assertions.assertTrue(setCookie.contains("refresh_token"));
+        org.mockito.Mockito.verify(mentorAccess).ensureForLogin(user);
+        assertEquals("https://app.example/auth/callback", response.getRedirectedUrl());
     }
 
     @Test
     void admittedUser_followsExistingWebFlow() throws Exception {
-        when(betaGate.admit(any())).thenReturn(true);
         when(refreshStore.issue(anyLong())).thenReturn("rt");
         when(cookies.create("rt")).thenReturn(
                 ResponseCookie.from("refresh_token", "rt").httpOnly(true).path("/").build());
@@ -139,7 +131,6 @@ class OAuth2LoginSuccessHandlerBetaTest {
 
     @Test
     void adminMarkedLogin_setsRefreshCookie_redirectsToAdminCallback() throws Exception {
-        when(betaGate.admit(any())).thenReturn(true);
         when(props.getAdminUrl()).thenReturn("https://admin.example");
         when(refreshStore.issue(anyLong())).thenReturn("rt");
         when(cookies.create("rt")).thenReturn(

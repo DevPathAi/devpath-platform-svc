@@ -8,6 +8,7 @@ import ai.devpath.platform.auth.jwt.JwtService;
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.user.UserRepository;
+import ai.devpath.platform.mentor.MentorAccessService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Optional;
 import org.springframework.http.HttpHeaders;
@@ -27,14 +28,16 @@ public class AuthController {
 	private final RefreshCookies cookies;
 	private final UserRepository users;
 	private final AuthCodeStore authCodeStore;
+	private final MentorAccessService mentorAccess;
 
 	public AuthController(RefreshTokenStore refreshStore, JwtService jwt, RefreshCookies cookies,
-			UserRepository users, AuthCodeStore authCodeStore) {
+			UserRepository users, AuthCodeStore authCodeStore, MentorAccessService mentorAccess) {
 		this.refreshStore = refreshStore;
 		this.jwt = jwt;
 		this.cookies = cookies;
 		this.users = users;
 		this.authCodeStore = authCodeStore;
+		this.mentorAccess = mentorAccess;
 	}
 
 	/**
@@ -55,7 +58,8 @@ public class AuthController {
 		User user = users.findById(consumed.get().userId()).orElse(null);
 		if (user == null) return ResponseEntity.status(401).build();
 
-		String access = jwt.mintAccessToken(user.getId(), user.getRole());
+		String access = jwt.mintAccessToken(user.getId(), user.getRole(),
+				mentorAccess.ensureForLogin(user).getStatus());
 		String refresh = refreshStore.issue(user.getId());
 		return ResponseEntity.ok(new LoginResponse(access, refresh, false, UserSummary.of(user)));
 	}
@@ -76,7 +80,8 @@ public class AuthController {
 		User user = users.findById(rotated.get().userId()).orElse(null);
 		if (user == null || user.getDeletedAt() != null) return ResponseEntity.status(401).build();
 
-		String access = jwt.mintAccessToken(user.getId(), user.getRole());
+		String access = jwt.mintAccessToken(user.getId(), user.getRole(),
+				mentorAccess.ensureForLogin(user).getStatus());
 		if (fromBody) {
 			// 모바일: 회전된 신규 refresh를 바디로 반환(네이티브는 쿠키를 못 읽으므로 회전 불일치 방지). 쿠키 미설정.
 			return ResponseEntity.ok(new LoginResponse(access, rotated.get().newToken(), false, UserSummary.of(user)));
