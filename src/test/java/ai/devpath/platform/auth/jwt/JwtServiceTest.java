@@ -39,4 +39,17 @@ class JwtServiceTest {
 		assertEquals("WAITLISTED", jwt.getClaimAsString("mentor_access"));
 		assertTrue(jwt.getExpiresAt().isAfter(Instant.now()));
 	}
+
+	@Test
+	void twoArgumentMintFailsClosedToWaitlistedMentorAccess() {
+		JwtService svc = newService();
+		String token = svc.mintAccessToken(42L, "LEARNER");
+
+		AuthProperties props = new AuthProperties();
+		props.setJwtSecret("test-secret-please-change-min-32-bytes-long-0123456789");
+		SecurityConfig cfg = new SecurityConfig(props);
+		Jwt jwt = cfg.jwtDecoder(cfg.jwtSecretKey()).decode(token);
+
+		assertEquals("WAITLISTED", jwt.getClaimAsString("mentor_access"));
+	}
 }

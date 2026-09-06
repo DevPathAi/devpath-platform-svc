@@ -21,7 +21,7 @@ public class JwtService {
 	}
 
 	public String mintAccessToken(long userId, String role) {
-		return mintAccessToken(userId, role, "ACTIVE");
+		return mintAccessToken(userId, role, "WAITLISTED");
 	}
 
 	public String mintAccessToken(long userId, String role, String mentorAccess) {
