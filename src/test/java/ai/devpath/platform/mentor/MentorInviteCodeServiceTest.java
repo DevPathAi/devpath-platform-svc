@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -122,9 +123,88 @@ class MentorInviteCodeServiceTest {
     assertThat(stored.get().getCodeHash()).doesNotContain(issued.code());
   }
 
+  @Test
+  void createRejectsEveryInvalidCommandBoundaryBeforePersisting() {
+    assertThatThrownBy(() -> service.create(null, 99L))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertInvalidCreate(new MentorInviteCodeService.CreateCommand(
+        " ", "JUDGE", "cohort-2", NOW.plusSeconds(60), 1));
+    assertInvalidCreate(new MentorInviteCodeService.CreateCommand(
+        "label", "ADMIN", "cohort-2", NOW.plusSeconds(60), 1));
+    assertInvalidCreate(new MentorInviteCodeService.CreateCommand(
+        "label", "MENTOR", " ", NOW.plusSeconds(60), 1));
+    assertInvalidCreate(new MentorInviteCodeService.CreateCommand(
+        "label", "MENTOR", "cohort-2", NOW, 1));
+    assertInvalidCreate(new MentorInviteCodeService.CreateCommand(
+        "label", "MENTOR", "cohort-2", NOW.plusSeconds(60), 0));
+    assertInvalidCreate(new MentorInviteCodeService.CreateCommand(
+        "label", "MENTOR", "cohort-2", NOW.plusSeconds(60), 1001));
+
+    verify(codes, never()).save(any());
+  }
+
+  @Test
+  void redeemRejectsMissingStateBlankAndDisabledCodesAndKeepsDuplicateIdempotent() {
+    when(users.findById(7L)).thenReturn(Optional.empty());
+    assertCode("INVITE_CODE_INVALID");
+
+    when(users.findById(7L)).thenReturn(Optional.of(user));
+    when(accesses.findLockedByUserId(7L)).thenReturn(Optional.empty());
+    assertCode("MENTOR_ACCESS_MISSING");
+
+    when(accesses.findLockedByUserId(7L)).thenReturn(Optional.of(waiting));
+    assertThatThrownBy(() -> service.redeem(7L, " "))
+        .isInstanceOf(MentorInviteCodeException.class)
+        .extracting("code").isEqualTo("INVITE_CODE_INVALID");
+
+    MentorInviteCode disabled = MentorInviteCode.create(
+        "a".repeat(64), "disabled", "MENTOR", "c", NOW.plusSeconds(60), 1, 99L);
+    disabled.disable(99L, "retired", NOW.minusSeconds(1));
+    when(codes.findLockedByCodeHash("a".repeat(64))).thenReturn(Optional.of(disabled));
+    assertCode("INVITE_CODE_DISABLED");
+
+    MentorInviteCode usable = MentorInviteCode.create(
+        "a".repeat(64), "usable", "MENTOR", "c", NOW.plusSeconds(60), 1, 99L);
+    when(codes.findLockedByCodeHash("a".repeat(64))).thenReturn(Optional.of(usable));
+    when(redemptions.existsByUserId(7L)).thenReturn(true);
+    assertThat(service.redeem(7L, "one-time-code")).isSameAs(waiting);
+
+    assertThat(waiting.getStatus()).isEqualTo("WAITLISTED");
+    verify(redemptions, never()).save(any());
+    verify(accesses, never()).save(any());
+    verify(outbox, never()).save(any());
+  }
+
+  @Test
+  void disableValidatesReasonAndIsIdempotent() {
+    assertThatThrownBy(() -> service.disable(11L, 99L, " "))
+        .isInstanceOf(IllegalArgumentException.class);
+    verify(codes, never()).findLockedById(any());
+
+    when(codes.findLockedById(11L)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> service.disable(11L, 99L, "retire"))
+        .isInstanceOf(MentorInviteCodeException.class)
+        .extracting("code").isEqualTo("INVITE_CODE_INVALID");
+
+    MentorInviteCode code = MentorInviteCode.create(
+        "a".repeat(64), "code", "JUDGE", "c", NOW.plusSeconds(60), 1, 99L);
+    when(codes.findLockedById(11L)).thenReturn(Optional.of(code));
+    service.disable(11L, 99L, "  retire  ");
+    assertThat(code.isEnabled()).isFalse();
+    verify(codes).save(code);
+
+    service.disable(11L, 99L, "retire again");
+    verify(codes, times(1)).save(code);
+  }
+
   private void assertCode(String code) {
     assertThatThrownBy(() -> service.redeem(7L, "one-time-code"))
         .isInstanceOf(MentorInviteCodeException.class)
         .extracting("code").isEqualTo(code);
+  }
+
+  private void assertInvalidCreate(MentorInviteCodeService.CreateCommand command) {
+    assertThatThrownBy(() -> service.create(command, 99L))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }
