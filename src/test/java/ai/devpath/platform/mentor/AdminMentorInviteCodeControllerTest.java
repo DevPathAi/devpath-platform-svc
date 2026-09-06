@@ -43,7 +43,11 @@ class AdminMentorInviteCodeControllerTest {
             .content(body))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(11))
-        .andExpect(jsonPath("$.code").value("one-time-raw-code"));
+        .andExpect(jsonPath("$.code").value("one-time-raw-code"))
+        .andExpect(jsonPath("$.inviteUrl")
+            .value("http://localhost:5173/login#invite=one-time-raw-code&returnTo=%2Fmentor"))
+        .andExpect(jsonPath("$.inviteUrl").value(org.hamcrest.Matchers.not(
+            org.hamcrest.Matchers.containsString("?invite="))));
 
     mvc.perform(post("/admin/mentor/invite-codes")
             .header("Authorization", "Bearer " + jwt.mintAccessToken(7L, "LEARNER"))
