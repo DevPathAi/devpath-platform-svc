@@ -1,6 +1,7 @@
 package ai.devpath.platform.mentor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -62,6 +63,41 @@ class MentorAccessServiceTest {
     assertThat(service.ensureForLogin(user)).isSameAs(existing);
     verify(access, never()).save(any());
     verify(outbox, never()).save(any());
+  }
+
+  @Test
+  void accessQueriesCoverActiveWaitingAndMissingRows() {
+    MentorAccess active = MentorAccess.active(11L, "ADMIN");
+    MentorAccess waiting = MentorAccess.waitlisted(12L);
+    when(access.findByUserId(11L)).thenReturn(Optional.of(active));
+    when(access.findByUserId(12L)).thenReturn(Optional.of(waiting));
+    when(access.findByUserId(13L)).thenReturn(Optional.empty());
+
+    assertThat(service.isActive(11L)).isTrue();
+    assertThat(service.isActive(12L)).isFalse();
+    assertThat(service.isActive(13L)).isFalse();
+    assertThat(service.findForUser(12L)).isSameAs(waiting);
+    assertThatThrownBy(() -> service.findForUser(13L))
+        .isInstanceOf(MentorInviteCodeException.class)
+        .extracting("code").isEqualTo("MENTOR_ACCESS_MISSING");
+  }
+
+  @Test
+  void adminActivationUpdatesOnlyWaitingAccess() {
+    User waitingUser = user(21L, "waiting@example.com", "LEARNER", "ACTIVE");
+    User activeUser = user(22L, "active@example.com", "LEARNER", "ACTIVE");
+    MentorAccess waiting = MentorAccess.waitlisted(21L);
+    MentorAccess alreadyActive = MentorAccess.active(22L, "INVITE_CODE");
+    when(access.findByUserId(21L)).thenReturn(Optional.of(waiting));
+    when(access.findByUserId(22L)).thenReturn(Optional.of(alreadyActive));
+
+    assertThat(service.activateByAdmin(waitingUser)).isSameAs(waiting);
+    assertThat(waiting.getStatus()).isEqualTo("ACTIVE");
+    assertThat(waiting.getSource()).isEqualTo("ADMIN");
+    verify(access).save(waiting);
+
+    assertThat(service.activateByAdmin(activeUser)).isSameAs(alreadyActive);
+    verify(access, never()).save(alreadyActive);
   }
 
   private static User user(long id, String email, String role, String status) {

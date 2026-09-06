@@ -135,6 +135,50 @@ class PublicSupportServiceTest {
         .noneMatch(value -> value.contains("203.0.113.10") || value.contains("token-value"));
   }
 
+  @Test
+  void rejectsNullRequestAndBlankTurnstileTokenBeforeExternalChecks() {
+    assertThatThrownBy(() -> service.create(null, "203.0.113.10"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("request");
+    assertThatThrownBy(() -> service.create(withTurnstileToken("  "), "203.0.113.10"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("1-2048");
+
+    verify(turnstile, never()).verify(any(), any());
+    verify(rateLimiter, never()).allow(any(), any());
+    verify(support, never()).createPublic(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void acceptsTitleAndBodyAtExactMaximumLengths() {
+    PublicSupportCreateRequest request = request("t".repeat(200), "b".repeat(5000));
+    when(turnstile.verify("token-value", "203.0.113.10")).thenReturn(true);
+    when(rateLimiter.allow("203.0.113.10", "person@example.com")).thenReturn(true);
+    when(support.createPublic(any(), any(), any(), any(), any())).thenReturn(new SupportRequest());
+
+    service.create(request, "203.0.113.10");
+
+    verify(support).createPublic(
+        "person@example.com", "INQUIRY", "t".repeat(200), "b".repeat(5000),
+        Instant.parse("2026-09-05T06:00:00Z"));
+  }
+
+  @Test
+  void rejectsBlankAndOversizedTitleOrBodyBeforeExternalChecks() {
+    for (PublicSupportCreateRequest bad : java.util.List.of(
+        request("  ", "body"),
+        request("t".repeat(201), "body"),
+        request("title", "  "),
+        request("title", "b".repeat(5001)))) {
+      assertThatThrownBy(() -> service.create(bad, "203.0.113.10"))
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    verify(turnstile, never()).verify(any(), any());
+    verify(rateLimiter, never()).allow(any(), any());
+    verify(support, never()).createPublic(any(), any(), any(), any(), any());
+  }
+
   private static PublicSupportCreateRequest valid() {
     return new PublicSupportCreateRequest(
         "INQUIRY",
@@ -153,5 +197,15 @@ class PublicSupportServiceTest {
         "문의 내용",
         true,
         token);
+  }
+
+  private static PublicSupportCreateRequest request(String title, String body) {
+    return new PublicSupportCreateRequest(
+        "INQUIRY",
+        "person@example.com",
+        title,
+        body,
+        true,
+        "token-value");
   }
 }

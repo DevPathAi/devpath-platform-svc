@@ -76,6 +76,37 @@ class CloudflareTurnstileVerifierTest {
         .isInstanceOf(TurnstileUnavailableException.class);
   }
 
+  @Test
+  void refusesBlankOperationalSecret() {
+    properties.setTurnstileSecret("  ");
+
+    assertThatThrownBy(() -> new CloudflareTurnstileVerifier(builder.build(), properties))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("TURNSTILE_SECRET");
+  }
+
+  @Test
+  void rejectsEmptyProviderResponse() {
+    server.expect(once(), requestTo("https://turnstile.example.test/siteverify"))
+        .andRespond(withSuccess());
+
+    assertThat(verifier().verify("browser-token", "203.0.113.10")).isFalse();
+    server.verify();
+  }
+
+  @Test
+  void omitsRemoteIpWhenConnectionAddressIsBlank() {
+    server.expect(once(), requestTo("https://turnstile.example.test/siteverify"))
+        .andExpect(content().string(org.hamcrest.Matchers.not(
+            org.hamcrest.Matchers.containsString("remoteip="))))
+        .andRespond(withSuccess("""
+            {"success":true,"hostname":"leva.ai.kr","action":"public_support"}
+            """, MediaType.APPLICATION_JSON));
+
+    assertThat(verifier().verify("browser-token", "  ")).isTrue();
+    server.verify();
+  }
+
   private CloudflareTurnstileVerifier verifier() {
     return new CloudflareTurnstileVerifier(builder.build(), properties);
   }
