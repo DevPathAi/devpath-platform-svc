@@ -46,7 +46,7 @@ class MentorInviteCodeServiceTest {
     when(user.getEmail()).thenReturn("person@example.com");
     when(users.findById(7L)).thenReturn(Optional.of(user));
     waiting = MentorAccess.waitlisted(7L);
-    when(accesses.findByUserId(7L)).thenReturn(Optional.of(waiting));
+    when(accesses.findLockedByUserId(7L)).thenReturn(Optional.of(waiting));
     when(hasher.hash("one-time-code")).thenReturn("a".repeat(64));
   }
 
@@ -92,7 +92,7 @@ class MentorInviteCodeServiceTest {
   @Test
   void alreadyActiveUserIsIdempotentAndDoesNotConsumeAnotherCode() {
     MentorAccess active = MentorAccess.active(7L, "BATCH");
-    when(accesses.findByUserId(7L)).thenReturn(Optional.of(active));
+    when(accesses.findLockedByUserId(7L)).thenReturn(Optional.of(active));
 
     assertThat(service.redeem(7L, "one-time-code")).isSameAs(active);
 

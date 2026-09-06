@@ -4,6 +4,7 @@ import ai.devpath.platform.beta.BetaAllowlistRepository;
 import ai.devpath.platform.outbox.OutboxEntry;
 import ai.devpath.platform.outbox.OutboxRepository;
 import ai.devpath.platform.user.User;
+import ai.devpath.platform.user.UserRepository;
 import ai.devpath.shared.event.MentorAccessWaitlistedEvent;
 import java.time.Instant;
 import java.util.Locale;
@@ -15,16 +16,19 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class MentorAccessService {
   private final MentorAccessRepository access;
+  private final UserRepository users;
   private final BetaAllowlistRepository allowlist;
   private final OutboxRepository outbox;
   private final JsonMapper jsonMapper;
 
   public MentorAccessService(
       MentorAccessRepository access,
+      UserRepository users,
       BetaAllowlistRepository allowlist,
       OutboxRepository outbox,
       JsonMapper jsonMapper) {
     this.access = access;
+    this.users = users;
     this.allowlist = allowlist;
     this.outbox = outbox;
     this.jsonMapper = jsonMapper;
@@ -33,7 +37,9 @@ public class MentorAccessService {
   @Transactional
   public MentorAccess ensureForLogin(User user) {
     long userId = requireUserId(user);
-    return access.findByUserId(userId).orElseGet(() -> createInitial(user, userId));
+    User lockedUser = users.findLockedById(userId)
+        .orElseThrow(() -> new IllegalArgumentException("persisted user is required"));
+    return access.findByUserId(userId).orElseGet(() -> createInitial(lockedUser, userId));
   }
 
   @Transactional(readOnly = true)

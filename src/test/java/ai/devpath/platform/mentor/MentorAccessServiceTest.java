@@ -12,6 +12,7 @@ import ai.devpath.platform.beta.BetaAllowlistRepository;
 import ai.devpath.platform.outbox.OutboxEntry;
 import ai.devpath.platform.outbox.OutboxRepository;
 import ai.devpath.platform.user.User;
+import ai.devpath.platform.user.UserRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
@@ -19,14 +20,16 @@ import tools.jackson.databind.json.JsonMapper;
 class MentorAccessServiceTest {
 
   private final MentorAccessRepository access = mock(MentorAccessRepository.class);
+  private final UserRepository users = mock(UserRepository.class);
   private final BetaAllowlistRepository allowlist = mock(BetaAllowlistRepository.class);
   private final OutboxRepository outbox = mock(OutboxRepository.class);
   private final MentorAccessService service =
-      new MentorAccessService(access, allowlist, outbox, JsonMapper.builder().build());
+      new MentorAccessService(access, users, allowlist, outbox, JsonMapper.builder().build());
 
   @Test
   void firstUnlistedLoginCreatesWaitlistWithoutBlockingGeneralAccount() {
     User user = user(7L, "Person@Example.com", "LEARNER", "ACTIVE");
+    when(users.findLockedById(7L)).thenReturn(Optional.of(user));
     when(access.findByUserId(7L)).thenReturn(Optional.empty());
     when(allowlist.existsByEmail("person@example.com")).thenReturn(false);
     when(access.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -42,6 +45,7 @@ class MentorAccessServiceTest {
   @Test
   void allowlistedOrAdminLoginStartsActive() {
     User allowlisted = user(8L, "allowed@example.com", "LEARNER", "ACTIVE");
+    when(users.findLockedById(8L)).thenReturn(Optional.of(allowlisted));
     when(access.findByUserId(8L)).thenReturn(Optional.empty());
     when(allowlist.existsByEmail("allowed@example.com")).thenReturn(true);
     when(access.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -50,6 +54,7 @@ class MentorAccessServiceTest {
     verify(outbox, never()).save(any());
 
     User admin = user(9L, "admin@example.com", "ADMIN", "ACTIVE");
+    when(users.findLockedById(9L)).thenReturn(Optional.of(admin));
     when(access.findByUserId(9L)).thenReturn(Optional.empty());
     assertThat(service.ensureForLogin(admin).getStatus()).isEqualTo("ACTIVE");
   }
@@ -57,6 +62,7 @@ class MentorAccessServiceTest {
   @Test
   void repeatedLoginReturnsExistingAccessWithoutDuplicateWriteOrEvent() {
     User user = user(10L, "same@example.com", "LEARNER", "ACTIVE");
+    when(users.findLockedById(10L)).thenReturn(Optional.of(user));
     MentorAccess existing = MentorAccess.waitlisted(10L);
     when(access.findByUserId(10L)).thenReturn(Optional.of(existing));
 
@@ -86,6 +92,8 @@ class MentorAccessServiceTest {
   void adminActivationUpdatesOnlyWaitingAccess() {
     User waitingUser = user(21L, "waiting@example.com", "LEARNER", "ACTIVE");
     User activeUser = user(22L, "active@example.com", "LEARNER", "ACTIVE");
+    when(users.findLockedById(21L)).thenReturn(Optional.of(waitingUser));
+    when(users.findLockedById(22L)).thenReturn(Optional.of(activeUser));
     MentorAccess waiting = MentorAccess.waitlisted(21L);
     MentorAccess alreadyActive = MentorAccess.active(22L, "INVITE_CODE");
     when(access.findByUserId(21L)).thenReturn(Optional.of(waiting));

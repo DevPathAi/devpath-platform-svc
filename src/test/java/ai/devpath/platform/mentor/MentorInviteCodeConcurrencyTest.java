@@ -53,6 +53,32 @@ class MentorInviteCodeConcurrencyTest {
     assertThat(redemptions.countByInviteCodeId(issued.id())).isEqualTo(1);
   }
 
+  @Test
+  void concurrentReplayBySameUserIsIdempotent() throws Exception {
+    User admin = saveUser("replay-admin-", "ADMIN");
+    User user = saveUser("replay-user-", "LEARNER");
+    accesses.save(MentorAccess.waitlisted(user.getId()));
+    MentorInviteCodeService.IssuedCode issued = service.create(
+        new MentorInviteCodeService.CreateCommand(
+            "same-user", "MENTOR", "cohort-test", Instant.now().plusSeconds(3600), 1),
+        admin.getId());
+
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      Callable<String> redeem = () -> redeemAfterBarrier(user.getId(), issued.code(), ready, start);
+      var futures = List.of(executor.submit(redeem), executor.submit(redeem));
+      ready.await();
+      start.countDown();
+
+      assertThat(List.of(futures.get(0).get(), futures.get(1).get()))
+          .containsExactly("ACTIVE", "ACTIVE");
+    }
+
+    assertThat(codes.findById(issued.id()).orElseThrow().getRedemptionCount()).isEqualTo(1);
+    assertThat(redemptions.countByInviteCodeId(issued.id())).isEqualTo(1);
+  }
+
   private String redeemAfterBarrier(
       long userId,
       String code,

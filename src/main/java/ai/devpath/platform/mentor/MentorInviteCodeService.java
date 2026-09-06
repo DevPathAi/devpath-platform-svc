@@ -62,7 +62,7 @@ public class MentorInviteCodeService {
   public MentorAccess redeem(long userId, String rawCode) {
     User user = users.findById(userId)
         .orElseThrow(() -> new MentorInviteCodeException("INVITE_CODE_INVALID"));
-    MentorAccess access = accesses.findByUserId(userId)
+    MentorAccess access = accesses.findLockedByUserId(userId)
         .orElseThrow(() -> new MentorInviteCodeException("MENTOR_ACCESS_MISSING"));
     if ("ACTIVE".equals(access.getStatus())) return access;
     if (rawCode == null || rawCode.isBlank()) {
