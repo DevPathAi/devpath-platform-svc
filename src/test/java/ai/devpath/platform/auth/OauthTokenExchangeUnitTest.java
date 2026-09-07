@@ -3,6 +3,7 @@ package ai.devpath.platform.auth;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +14,8 @@ import ai.devpath.platform.auth.refresh.RefreshTokenStore;
 import ai.devpath.platform.config.AuthProperties;
 import ai.devpath.platform.user.User;
 import ai.devpath.platform.user.UserRepository;
+import ai.devpath.platform.mentor.MentorAccess;
+import ai.devpath.platform.mentor.MentorAccessService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +36,8 @@ class OauthTokenExchangeUnitTest {
 	private UserRepository users;
 	private AuthCodeStore codes;
 	private AuthController controller;
+	private MentorAccessService mentorAccess;
+	private User user;
 
 	@BeforeEach
 	void setUp() {
@@ -40,16 +45,19 @@ class OauthTokenExchangeUnitTest {
 		jwt = mock(JwtService.class);
 		users = mock(UserRepository.class);
 		codes = mock(AuthCodeStore.class);
-		controller = new AuthController(store, jwt, new RefreshCookies(new AuthProperties()), users, codes);
+		mentorAccess = mock(MentorAccessService.class);
+		controller = new AuthController(store, jwt, new RefreshCookies(new AuthProperties()), users, codes,
+			mentorAccess);
 
-		User u = mock(User.class);
-		when(u.getId()).thenReturn(7L);
-		when(u.getRole()).thenReturn("LEARNER");
-		when(u.getEmail()).thenReturn("learner@devpath.ai");
-		when(u.getNickname()).thenReturn("지수");
-		when(u.getOnboardingStatus()).thenReturn("DONE");
-		when(users.findById(7L)).thenReturn(Optional.of(u));
-		when(jwt.mintAccessToken(7L, "LEARNER")).thenReturn("acc");
+		user = mock(User.class);
+		when(user.getId()).thenReturn(7L);
+		when(user.getRole()).thenReturn("LEARNER");
+		when(user.getEmail()).thenReturn("learner@devpath.ai");
+		when(user.getNickname()).thenReturn("지수");
+		when(user.getOnboardingStatus()).thenReturn("DONE");
+		when(users.findById(7L)).thenReturn(Optional.of(user));
+		when(mentorAccess.ensureForLogin(user)).thenReturn(MentorAccess.active(7L, "INVITE_CODE"));
+		when(jwt.mintAccessToken(7L, "LEARNER", "ACTIVE")).thenReturn("acc");
 		when(store.issue(7L)).thenReturn("refresh-new");
 	}
 
@@ -118,5 +126,16 @@ class OauthTokenExchangeUnitTest {
 		when(users.findById(999L)).thenReturn(Optional.empty());
 		ResponseEntity<?> r = controller.exchange(new OauthTokenRequest("the-code", VERIFIER));
 		assertEquals(401, r.getStatusCode().value());
+	}
+
+	@Test
+	void softDeletedUserCannotExchangeValidPkceForNewCredentials() {
+		when(user.getDeletedAt()).thenReturn(java.time.Instant.parse("2026-09-05T03:00:00Z"));
+		when(codes.consume("the-code")).thenReturn(Optional.of(new AuthCodeStore.Consumed(7L, CHALLENGE)));
+
+		ResponseEntity<?> r = controller.exchange(new OauthTokenRequest("the-code", VERIFIER));
+
+		assertEquals(401, r.getStatusCode().value());
+		verifyNoInteractions(mentorAccess, jwt, store);
 	}
 }

@@ -45,6 +45,8 @@ class EventPropagationIT {
 
     @Test
     void outboxRelay_publishesUserRegisteredEvent() throws Exception {
+        int pendingBefore = outbox.findTop100ByPublishedAtIsNullOrderByCreatedAtAsc().size();
+
         // 1. FK 만족용 실제 user 저장
         User user = new User();
         user.setEmail("it-" + System.nanoTime() + "@example.com");
@@ -70,7 +72,8 @@ class EventPropagationIT {
 
         // 3. relay가 outbox 행을 Kafka에 발행
         int published = relay.relayOnce();
-        assertEquals(1, published, "relay는 1행을 발행해야 한다");
+        assertEquals(pendingBefore + 1, published,
+                "relay는 기존 미발행 행과 이번 테스트 행을 모두 발행해야 한다");
 
         // 4. 발행 성공 여부는 outbox 행의 published_at으로 검증(소비측은 더 이상 이 레포 책임 아님)
         OutboxEntry saved = outbox.findById(entry.getId()).orElseThrow();

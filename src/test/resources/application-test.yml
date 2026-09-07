@@ -1,4 +1,6 @@
 devpath:
+  public-support:
+    rate-limit-hmac-secret: test-rate-limit-secret-32-bytes-000
   auth:
     jwt-secret: test-secret-please-change-min-32-bytes-long-0123456789
 spring:
