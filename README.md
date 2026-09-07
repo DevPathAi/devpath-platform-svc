@@ -11,6 +11,8 @@
 | consent | 개인정보/약관 동의 이력, 14세 차단, 계정 삭제·로그아웃 |
 | mypage | 프로필 조회·수정(bio·목표·트랙·경력), 아바타 업로드/삭제(오브젝트 스토리지) |
 | beta | 베타 게이팅 — 승인 상태 폴링(`/beta/status`), admin 승인/허용리스트 |
+| mentor | 일반 계정과 분리된 멘토 접근 상태, 초대 코드 사용, admin 코드·일일 배치, 공개 초대 회차 조회 |
+| support | Turnstile 검증과 Redis IP/이메일 제한을 적용한 공개 문의 접수, 기존 admin 문의 처리 |
 
 > 알림(FCM 디바이스 토큰, 인앱 알림) 모듈은 2026-07-01 [devpath-notification-svc](https://github.com/DevPathAi/devpath-notification-svc)로 이관되었습니다.
 
