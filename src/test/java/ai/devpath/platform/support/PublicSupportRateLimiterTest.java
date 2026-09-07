@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.devpath.platform.config.PublicSupportProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 class PublicSupportRateLimiterTest {
@@ -32,6 +33,23 @@ class PublicSupportRateLimiterTest {
         org.mockito.Mockito.mock(StringRedisTemplate.class), properties))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("32 bytes");
+  }
+
+  @Test
+  void redisOutageUsesStableFailClosedAvailabilityError() {
+    StringRedisTemplate redis = org.mockito.Mockito.mock(StringRedisTemplate.class);
+    org.mockito.Mockito.when(redis.execute(
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.anyList(),
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString()))
+        .thenThrow(new RedisConnectionFailureException("redis unavailable"));
+    PublicSupportRateLimiter limiter = new PublicSupportRateLimiter(redis, properties());
+
+    assertThatThrownBy(() -> limiter.allow("203.0.113.10", "person@example.com"))
+        .isInstanceOf(PublicSupportException.class)
+        .extracting("code").isEqualTo("RATE_LIMIT_UNAVAILABLE");
   }
 
   private static PublicSupportProperties properties() {

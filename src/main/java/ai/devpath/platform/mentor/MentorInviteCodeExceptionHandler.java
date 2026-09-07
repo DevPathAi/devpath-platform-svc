@@ -7,14 +7,16 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(assignableTypes = {
-    MentorAccessController.class, AdminMentorInviteCodeController.class})
+    MentorAccessController.class, AdminMentorInviteCodeController.class,
+    AdminMentorInviteBatchController.class})
 public class MentorInviteCodeExceptionHandler {
   private static final Map<String, HttpStatus> STATUSES = Map.of(
       "INVITE_CODE_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
       "INVITE_CODE_DISABLED", HttpStatus.UNPROCESSABLE_ENTITY,
       "INVITE_CODE_EXPIRED", HttpStatus.UNPROCESSABLE_ENTITY,
       "INVITE_CODE_EXHAUSTED", HttpStatus.CONFLICT,
-      "MENTOR_ACCESS_MISSING", HttpStatus.CONFLICT);
+      "MENTOR_ACCESS_MISSING", HttpStatus.CONFLICT,
+      "MENTOR_BATCH_DISABLED", HttpStatus.SERVICE_UNAVAILABLE);
 
   @ExceptionHandler(MentorInviteCodeException.class)
   public ResponseEntity<ErrorView> handle(MentorInviteCodeException exception) {

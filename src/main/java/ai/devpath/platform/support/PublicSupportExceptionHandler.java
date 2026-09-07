@@ -11,6 +11,7 @@ public class PublicSupportExceptionHandler {
   private static final Map<String, HttpStatus> STATUSES = Map.of(
       "TURNSTILE_FAILED", HttpStatus.UNPROCESSABLE_ENTITY,
       "TURNSTILE_UNAVAILABLE", HttpStatus.SERVICE_UNAVAILABLE,
+      "RATE_LIMIT_UNAVAILABLE", HttpStatus.SERVICE_UNAVAILABLE,
       "RATE_LIMITED", HttpStatus.TOO_MANY_REQUESTS);
 
   @ExceptionHandler(PublicSupportException.class)

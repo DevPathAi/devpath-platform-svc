@@ -108,6 +108,20 @@ class MentorAccessServiceTest {
     verify(access, never()).save(alreadyActive);
   }
 
+  @Test
+  void softDeletedUserCannotInitializeOrActivateMentorAccess() {
+    User deleted = user(23L, "deleted@example.com", "ADMIN", "ACTIVE");
+    when(deleted.getDeletedAt()).thenReturn(java.time.Instant.parse("2026-09-05T03:00:00Z"));
+    when(users.findLockedById(23L)).thenReturn(Optional.of(deleted));
+
+    assertThatThrownBy(() -> service.ensureForLogin(deleted))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    verify(access, never()).findByUserId(any());
+    verify(access, never()).save(any());
+    verify(outbox, never()).save(any());
+  }
+
   private static User user(long id, String email, String role, String status) {
     User user = mock(User.class);
     when(user.getId()).thenReturn(id);

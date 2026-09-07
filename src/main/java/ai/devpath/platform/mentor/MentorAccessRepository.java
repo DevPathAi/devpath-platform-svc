@@ -16,11 +16,14 @@ public interface MentorAccessRepository extends JpaRepository<MentorAccess, Long
   Optional<MentorAccess> findLockedByUserId(@Param("userId") Long userId);
 
   @Query(value = """
-      SELECT * FROM mentor_access
-      WHERE status = 'WAITLISTED'
-      ORDER BY waitlisted_at, id
+      SELECT ma.* FROM mentor_access ma
+      JOIN users u ON u.id = ma.user_id
+      WHERE ma.status = 'WAITLISTED'
+        AND u.status = 'ACTIVE'
+        AND u.deleted_at IS NULL
+      ORDER BY ma.waitlisted_at, ma.id
       LIMIT :limit
-      FOR UPDATE SKIP LOCKED
+      FOR UPDATE OF ma SKIP LOCKED
       """, nativeQuery = true)
   List<MentorAccess> lockNextWaitlisted(@Param("limit") int limit);
 }

@@ -77,6 +77,10 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			response.sendRedirect(props.getWebUrl() + "/login?error=email_required");
 			return;
 		}
+		if (user.getDeletedAt() != null) {
+			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+			return;
+		}
 
 		// 일반 계정은 항상 앱에 들어간다. AI 멘토만 별도 접근 상태로 잠근다.
 		mentorAccess.ensureForLogin(user);

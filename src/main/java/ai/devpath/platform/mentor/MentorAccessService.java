@@ -39,6 +39,9 @@ public class MentorAccessService {
     long userId = requireUserId(user);
     User lockedUser = users.findLockedById(userId)
         .orElseThrow(() -> new IllegalArgumentException("persisted user is required"));
+    if (lockedUser.getDeletedAt() != null || !"ACTIVE".equals(lockedUser.getStatus())) {
+      throw new IllegalArgumentException("active user is required");
+    }
     return access.findByUserId(userId).orElseGet(() -> createInitial(lockedUser, userId));
   }
 

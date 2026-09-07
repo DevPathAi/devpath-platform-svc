@@ -45,6 +45,7 @@ class MentorInviteCodeServiceTest {
     user = mock(User.class);
     when(user.getId()).thenReturn(7L);
     when(user.getEmail()).thenReturn("person@example.com");
+    when(user.getStatus()).thenReturn("ACTIVE");
     when(users.findById(7L)).thenReturn(Optional.of(user));
     waiting = MentorAccess.waitlisted(7L);
     when(accesses.findLockedByUserId(7L)).thenReturn(Optional.of(waiting));
@@ -195,6 +196,20 @@ class MentorInviteCodeServiceTest {
 
     service.disable(11L, 99L, "retire again");
     verify(codes, times(1)).save(code);
+  }
+
+  @Test
+  void softDeletedUserCannotRedeemAnInviteCode() {
+    when(user.getDeletedAt()).thenReturn(NOW);
+
+    assertThatThrownBy(() -> service.redeem(7L, "one-time-code"))
+        .isInstanceOf(MentorInviteCodeException.class)
+        .extracting("code").isEqualTo("INVITE_CODE_INVALID");
+
+    verify(accesses, never()).findLockedByUserId(any());
+    verify(codes, never()).findLockedByCodeHash(any());
+    verify(redemptions, never()).save(any());
+    verify(outbox, never()).save(any());
   }
 
   private void assertCode(String code) {

@@ -60,6 +60,9 @@ public class MentorInviteBatchService {
 
   @Transactional
   public BatchRun run(LocalDate date) {
+    if (!properties.isBatchEnabled()) {
+      throw new MentorInviteCodeException("MENTOR_BATCH_DISABLED");
+    }
     int chunkSize = properties.getBatchChunkSize();
     int dailyCap = properties.getBatchDailyCap();
     validateLimits(chunkSize, dailyCap);

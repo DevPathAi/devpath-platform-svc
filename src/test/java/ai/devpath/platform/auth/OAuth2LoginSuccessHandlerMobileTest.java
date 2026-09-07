@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
@@ -40,6 +41,7 @@ class OAuth2LoginSuccessHandlerMobileTest {
 	private AuthProperties props;
 	private MentorAccessService mentorAccess;
 	private OAuth2LoginSuccessHandler handler;
+	private User user;
 
 	@BeforeEach
 	void setUp() {
@@ -53,7 +55,7 @@ class OAuth2LoginSuccessHandlerMobileTest {
 		props.setWebUrl("https://web.devpath.ai");
 		props.setMobileRedirectUri("devpath://callback");
 
-		User user = mock(User.class);
+		user = mock(User.class);
 		when(user.getId()).thenReturn(7L);
 		when(registration.registerOrFind(any())).thenReturn(user);
 		when(refreshStore.issue(7L)).thenReturn(ISSUED_REFRESH);
@@ -99,5 +101,21 @@ class OAuth2LoginSuccessHandlerMobileTest {
 		assertEquals("devpath://callback?code=" + ISSUED_CODE, url, "모바일은 일회용 code만 딥링크로: " + url);
 		assertTrue(!url.contains("access_token") && !url.contains("refresh_token"), "토큰은 URL에 없어야 함: " + url);
 		assertNull(res.getHeader("Set-Cookie"), "모바일은 쿠키 미설정");
+	}
+
+	@Test
+	void softDeletedOAuthUserReceivesNoCodeCookieOrRedirect() throws Exception {
+		when(user.getDeletedAt()).thenReturn(java.time.Instant.parse("2026-09-05T03:00:00Z"));
+		MockHttpServletRequest req = new MockHttpServletRequest();
+		req.setParameter("state", "csrf-rand"
+				+ MobileAwareAuthorizationRequestResolver.MOBILE_STATE_MARKER + CHALLENGE);
+		MockHttpServletResponse res = new MockHttpServletResponse();
+
+		handler.onAuthenticationSuccess(req, res, githubAuth());
+
+		assertEquals(401, res.getStatus());
+		assertNull(res.getRedirectedUrl());
+		assertNull(res.getHeader("Set-Cookie"));
+		verifyNoInteractions(mentorAccess, refreshStore, authCodeStore);
 	}
 }

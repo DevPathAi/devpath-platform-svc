@@ -42,6 +42,7 @@ class PublicSupportControllerTest {
     for (var scenario : java.util.Map.of(
         "TURNSTILE_FAILED", 422,
         "TURNSTILE_UNAVAILABLE", 503,
+        "RATE_LIMIT_UNAVAILABLE", 503,
         "RATE_LIMITED", 429).entrySet()) {
       PublicSupportService service = mock(PublicSupportService.class);
       when(service.create(any(), any()))

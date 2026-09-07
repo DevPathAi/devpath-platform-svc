@@ -8,6 +8,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -36,13 +37,18 @@ public class PublicSupportRateLimiter {
   }
 
   public boolean allow(String remoteIp, String email) {
-    Long result = redis.execute(
-        LIMIT_SCRIPT,
-        List.of(ipKey(remoteIp), emailKey(email)),
-        String.valueOf(properties.getRateLimitWindow().toMillis()),
-        String.valueOf(properties.getRateLimitPerIp()),
-        String.valueOf(properties.getRateLimitPerEmail()));
-    return Long.valueOf(1L).equals(result);
+    try {
+      Long result = redis.execute(
+          LIMIT_SCRIPT,
+          List.of(ipKey(remoteIp), emailKey(email)),
+          String.valueOf(properties.getRateLimitWindow().toMillis()),
+          String.valueOf(properties.getRateLimitPerIp()),
+          String.valueOf(properties.getRateLimitPerEmail()));
+      return Long.valueOf(1L).equals(result);
+    } catch (DataAccessException exception) {
+      throw new PublicSupportException(
+          "RATE_LIMIT_UNAVAILABLE", "public support rate limiter is unavailable");
+    }
   }
 
   String ipKey(String remoteIp) {

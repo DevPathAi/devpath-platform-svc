@@ -1,6 +1,7 @@
 package ai.devpath.platform.mentor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -74,8 +75,28 @@ class MentorInviteBatchServiceTest {
     verify(outbox, never()).saveAll(any());
   }
 
+  @Test
+  void disabledBatchGateRejectsManualRunsBeforeAnyDatabaseMutation() {
+    MentorAccessProperties disabled = new MentorAccessProperties();
+    disabled.setBatchEnabled(false);
+    disabled.setBatchChunkSize(2);
+    disabled.setBatchDailyCap(3);
+    MentorInviteBatchService disabledService = new MentorInviteBatchService(
+        batches, accesses, users, outbox, disabled,
+        JsonMapper.builder().build(), Clock.fixed(NOW, ZoneOffset.UTC));
+
+    assertThatThrownBy(() -> disabledService.run(DATE))
+        .isInstanceOf(MentorInviteCodeException.class)
+        .extracting("code").isEqualTo("MENTOR_BATCH_DISABLED");
+
+    verify(batches, never()).claim(any(), anyInt(), anyInt());
+    verify(accesses, never()).lockNextWaitlisted(anyInt());
+    verify(outbox, never()).saveAll(any());
+  }
+
   private static MentorAccessProperties properties() {
     MentorAccessProperties properties = new MentorAccessProperties();
+    properties.setBatchEnabled(true);
     properties.setBatchChunkSize(2);
     properties.setBatchDailyCap(3);
     return properties;

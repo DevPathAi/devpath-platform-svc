@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(properties = {
+    "devpath.mentor-access.batch-enabled=true",
     "devpath.mentor-access.batch-chunk-size=2",
     "devpath.mentor-access.batch-daily-cap=3"
 })
