@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ai.devpath.platform.auth.refresh.RefreshTokenStore;
-import ai.devpath.platform.beta.BetaGate;
 import ai.devpath.platform.config.AuthProperties;
-import ai.devpath.platform.config.BetaProperties;
+import ai.devpath.platform.mentor.MentorAccessService;
 import ai.devpath.platform.user.User;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,9 +39,9 @@ class OAuth2LoginSuccessHandlerMobileTest {
 	private AuthCodeStore authCodeStore;
 	private OAuth2AuthorizedClientService authorizedClients;
 	private AuthProperties props;
-	private BetaGate betaGate;
-	private BetaProperties betaProperties;
+	private MentorAccessService mentorAccess;
 	private OAuth2LoginSuccessHandler handler;
+	private User user;
 
 	@BeforeEach
 	void setUp() {
@@ -49,26 +49,21 @@ class OAuth2LoginSuccessHandlerMobileTest {
 		refreshStore = mock(RefreshTokenStore.class);
 		authCodeStore = mock(AuthCodeStore.class);
 		authorizedClients = mock(OAuth2AuthorizedClientService.class);
-		betaGate = mock(BetaGate.class);
-		betaProperties = mock(BetaProperties.class);
+		mentorAccess = mock(MentorAccessService.class);
 
 		props = new AuthProperties();
 		props.setWebUrl("https://web.devpath.ai");
 		props.setMobileRedirectUri("devpath://callback");
 
-		User user = mock(User.class);
+		user = mock(User.class);
 		when(user.getId()).thenReturn(7L);
 		when(registration.registerOrFind(any())).thenReturn(user);
 		when(refreshStore.issue(7L)).thenReturn(ISSUED_REFRESH);
 		when(authCodeStore.issue(7L, CHALLENGE)).thenReturn(ISSUED_CODE);
 		when(authorizedClients.loadAuthorizedClient(anyString(), anyString())).thenReturn(null);
-		// 베타 게이팅: 기존 모바일/웹 플로우 테스트에서는 admit=true로 통과
-		when(betaGate.admit(any())).thenReturn(true);
-
 		handler = new OAuth2LoginSuccessHandler(
 				registration, refreshStore, new RefreshCookies(props), props, authorizedClients, authCodeStore,
-				betaGate, betaProperties,
-				mock(ai.devpath.platform.beta.BetaStatusTokens.class), mock(ai.devpath.platform.beta.BetaStatusCookies.class),
+				mentorAccess,
 				mock(ai.devpath.platform.release.ReleaseControlService.class));
 	}
 
@@ -106,5 +101,21 @@ class OAuth2LoginSuccessHandlerMobileTest {
 		assertEquals("devpath://callback?code=" + ISSUED_CODE, url, "모바일은 일회용 code만 딥링크로: " + url);
 		assertTrue(!url.contains("access_token") && !url.contains("refresh_token"), "토큰은 URL에 없어야 함: " + url);
 		assertNull(res.getHeader("Set-Cookie"), "모바일은 쿠키 미설정");
+	}
+
+	@Test
+	void softDeletedOAuthUserReceivesNoCodeCookieOrRedirect() throws Exception {
+		when(user.getDeletedAt()).thenReturn(java.time.Instant.parse("2026-09-05T03:00:00Z"));
+		MockHttpServletRequest req = new MockHttpServletRequest();
+		req.setParameter("state", "csrf-rand"
+				+ MobileAwareAuthorizationRequestResolver.MOBILE_STATE_MARKER + CHALLENGE);
+		MockHttpServletResponse res = new MockHttpServletResponse();
+
+		handler.onAuthenticationSuccess(req, res, githubAuth());
+
+		assertEquals(401, res.getStatus());
+		assertNull(res.getRedirectedUrl());
+		assertNull(res.getHeader("Set-Cookie"));
+		verifyNoInteractions(mentorAccess, refreshStore, authCodeStore);
 	}
 }
