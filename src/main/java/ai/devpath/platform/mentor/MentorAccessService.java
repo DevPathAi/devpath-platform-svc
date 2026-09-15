@@ -15,6 +15,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class MentorAccessService {
+  private static final String ACTIVE = "ACTIVE";
+  private static final String LEGACY_BETA_PENDING = "BETA_PENDING";
+
   private final MentorAccessRepository access;
   private final UserRepository users;
   private final BetaAllowlistRepository allowlist;
@@ -39,7 +42,12 @@ public class MentorAccessService {
     long userId = requireUserId(user);
     User lockedUser = users.findLockedById(userId)
         .orElseThrow(() -> new IllegalArgumentException("persisted user is required"));
-    if (lockedUser.getDeletedAt() != null || !"ACTIVE".equals(lockedUser.getStatus())) {
+    if (lockedUser.getDeletedAt() != null) {
+      throw new IllegalArgumentException("active user is required");
+    }
+    if (LEGACY_BETA_PENDING.equals(lockedUser.getStatus())) {
+      lockedUser.setStatus(ACTIVE);
+    } else if (!ACTIVE.equals(lockedUser.getStatus())) {
       throw new IllegalArgumentException("active user is required");
     }
     return access.findByUserId(userId).orElseGet(() -> createInitial(lockedUser, userId));
