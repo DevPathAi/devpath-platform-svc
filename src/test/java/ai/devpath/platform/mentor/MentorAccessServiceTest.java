@@ -43,6 +43,36 @@ class MentorAccessServiceTest {
   }
 
   @Test
+  void legacyBetaPendingLoginRestoresGeneralAccessAndCreatesMentorWaitlist() {
+    User user = user(24L, "legacy@example.com", "LEARNER", "BETA_PENDING");
+    when(users.findLockedById(24L)).thenReturn(Optional.of(user));
+    when(access.findByUserId(24L)).thenReturn(Optional.empty());
+    when(allowlist.existsByEmail("legacy@example.com")).thenReturn(false);
+    when(access.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    MentorAccess result = service.ensureForLogin(user);
+
+    assertThat(result.getStatus()).isEqualTo("WAITLISTED");
+    verify(user).setStatus("ACTIVE");
+    verify(outbox).save(any(OutboxEntry.class));
+  }
+
+  @Test
+  void unknownInactiveStatusCannotInitializeMentorAccess() {
+    User user = user(25L, "suspended@example.com", "LEARNER", "SUSPENDED");
+    when(users.findLockedById(25L)).thenReturn(Optional.of(user));
+
+    assertThatThrownBy(() -> service.ensureForLogin(user))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("active user is required");
+
+    verify(user, never()).setStatus(any());
+    verify(access, never()).findByUserId(any());
+    verify(access, never()).save(any());
+    verify(outbox, never()).save(any());
+  }
+
+  @Test
   void allowlistedOrAdminLoginStartsActive() {
     User allowlisted = user(8L, "allowed@example.com", "LEARNER", "ACTIVE");
     when(users.findLockedById(8L)).thenReturn(Optional.of(allowlisted));
