@@ -1,6 +1,6 @@
 # devpath-platform-svc
 
-**DevPath AI** 플랫폼 서비스 — 사용자/인증, GitHub 수집을 담당합니다.
+**레바(Leva)** 플랫폼 서비스 — 사용자/인증, GitHub 수집을 담당합니다.
 
 ## 담당 도메인
 
